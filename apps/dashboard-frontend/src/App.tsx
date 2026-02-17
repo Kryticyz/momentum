@@ -35,7 +35,7 @@ export function App() {
         }}
       >
         <h1 style={{ fontSize: 22, fontWeight: 700, color: "#f1f5f9" }}>
-          Project Insights
+          Momentum
         </h1>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center" }}>
           <DateRangePicker range={range} onChange={setRange} />

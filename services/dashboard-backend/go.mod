@@ -1,3 +1,3 @@
-module github.com/kryticyz/project-insights-dashboard
+module github.com/kryticyz/momentum-dashboard
 
 go 1.21

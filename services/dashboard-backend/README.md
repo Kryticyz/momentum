@@ -21,7 +21,7 @@ Go HTTP service that reads the plugin's JSONL export and serves aggregated time 
 
 ```json
 {
-  "jsonl_path": "/path/to/vault/.obsidian/project-insights/time-entries.jsonl",
+  "jsonl_path": "/path/to/vault/.obsidian/momentum/time-entries.jsonl",
   "port": 8080,
   "timezone": "Australia/Sydney",
   "poll_interval_hours": 1,

@@ -4,7 +4,7 @@ This defines the handoff between the Obsidian plugin and a local self-hosted Go 
 
 ## Input Source
 Default export file from plugin:
-- `.obsidian/project-insights/time-entries.jsonl`
+- `.obsidian/momentum/time-entries.jsonl`
 
 Refresh behavior:
 - Poll every 1 hour (configurable)

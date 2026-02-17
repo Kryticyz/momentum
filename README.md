@@ -1,6 +1,6 @@
-# Project Insights Platform
+# Momentum Platform
 
-Backend and client applications for consuming time data exported by the Project Insights ecosystem.
+Backend and client applications for consuming time data exported by the Momentum ecosystem.
 
 Current components:
 - `services/dashboard-backend/` — Go API service for loading and aggregating time entries.
