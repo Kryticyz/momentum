@@ -1,19 +1,20 @@
 # dashboard-backend
 
-Go HTTP service that reads the plugin's JSONL export and serves aggregated time data to the dashboard frontend. No database — in-memory only, reloaded from disk on a configurable interval.
+Go HTTP service that reads the plugin's JSONL export and serves aggregated time data to clients. No database; data is kept in memory and refreshed from disk.
 
 ## Module Map
 
 | File | Responsibility |
 |---|---|
-| `main.go` | Entry point: parse config, initial load, start poller, start server |
-| `config.go` | `Config` struct, load from `config.json`, override with CLI flags |
-| `config.json` | User-editable runtime config (not committed with real paths) |
-| `loader.go` | Read JSONL file line-by-line; skip malformed lines, return `[]TimeEntry` |
-| `store.go` | Thread-safe in-memory store (`sync.RWMutex`); `Load()`, `Entries()`, `startPoller()` |
-| `aggregator.go` | Pure aggregation functions: `filterByRange`, `aggregateByProject`, `aggregateByDay`, `aggregateByWeek` |
-| `handlers.go` | All `http.HandlerFunc` implementations; `parseDateRange` helper; `writeJSON` helper |
-| `server.go` | `newMux` wiring all routes; `corsMiddleware`; `spaHandler` static file fallback |
+| `main.go` | Entry point: config, initial load, poller startup, HTTP server lifecycle |
+| `config.go` | `Config` struct, config loading, CLI overrides |
+| `config.json` | Runtime config example |
+| `loader.go` | JSONL reader and parser (`[]TimeEntry`) |
+| `store.go` | Thread-safe in-memory store and polling reload loop |
+| `storage.go` | `EntryStore` interface used by handlers |
+| `aggregator.go` | Pure aggregation functions |
+| `handlers.go` | HTTP handlers and request validation |
+| `server.go` | Route wiring, CORS middleware, SPA fallback handler |
 
 ## Configuration
 
@@ -21,27 +22,43 @@ Go HTTP service that reads the plugin's JSONL export and serves aggregated time 
 
 ```json
 {
-  "jsonl_path": "/path/to/vault/.obsidian/momentum/time-entries.jsonl",
+  "jsonl_path": "",
   "port": 8080,
   "timezone": "Australia/Sydney",
   "poll_interval_hours": 1,
-  "frontend_dir": "./frontend/dist"
+  "serve_api": true,
+  "serve_frontend": true,
+  "frontend_dir": "./frontend/dist",
+  "cors_allowed_origins": ["http://localhost:5173"],
+  "read_timeout_seconds": 15,
+  "read_header_timeout_seconds": 10,
+  "write_timeout_seconds": 30,
+  "idle_timeout_seconds": 60,
+  "shutdown_timeout_seconds": 10
 }
 ```
 
 | Field | CLI flag | Default |
 |---|---|---|
-| `jsonl_path` | `-jsonl` | `""` (warn on startup, serve empty store) |
+| `jsonl_path` | `-jsonl` | `""` |
 | `port` | `-port` | `8080` |
 | `timezone` | `-tz` | `"Australia/Sydney"` |
 | `poll_interval_hours` | `-poll` | `1` |
+| `serve_api` | `-serve-api` (`true`/`false`) | `true` |
+| `serve_frontend` | `-serve-frontend` (`true`/`false`) | `true` |
 | `frontend_dir` | `-frontend` | `"./frontend/dist"` |
+| `cors_allowed_origins` | `-cors-origins` (comma-separated) | `["http://localhost:5173"]` |
+| `read_timeout_seconds` | `-read-timeout` | `15` |
+| `read_header_timeout_seconds` | `-read-header-timeout` | `10` |
+| `write_timeout_seconds` | `-write-timeout` | `30` |
+| `idle_timeout_seconds` | `-idle-timeout` | `60` |
+| `shutdown_timeout_seconds` | `-shutdown-timeout` | `10` |
 
-To use a different config file: `-config /path/to/config.json`
+Use `-config /path/to/config.json` to choose a different config file.
 
 ## API Endpoints
 
-All `GET` endpoints accept `?from=YYYY-MM-DD&to=YYYY-MM-DD`. Both default to the last 30 days in the configured timezone when omitted. Returns `400` on invalid or inverted range.
+All `GET` endpoints accept `?from=YYYY-MM-DD&to=YYYY-MM-DD`. If omitted, range defaults to the last 30 days in configured timezone.
 
 ### `GET /health`
 
@@ -55,97 +72,67 @@ All `GET` endpoints accept `?from=YYYY-MM-DD&to=YYYY-MM-DD`. Both default to the
 
 ### `POST /refresh`
 
-Triggers an immediate reload of the JSONL file.
+Triggers immediate reload of configured `jsonl_path`.
 
 ```json
 { "ok": true, "entries": 142 }
 ```
 
-### `GET /api/entries`
+### `GET /api/v1/entries`
 
-Raw `[]TimeEntry` filtered by date range. Use for debugging; not paginated.
+Raw filtered `[]TimeEntry` for diagnostics.
 
-```json
-[
-  {
-    "source": "daily-note",
-    "filePath": "2026-02-12.md",
-    "date": "2026-02-12",
-    "project": "Project A",
-    "start": "09:10",
-    "end": "09:45",
-    "minutes": 35,
-    "note": "Deep work",
-    "lineNumber": 42
-  }
-]
-```
+### `GET /api/v1/projects`
 
-### `GET /api/projects`
+Minutes per project, sorted descending.
 
-Minutes per project, sorted descending by `minutes`. `hours` is rounded to 2 decimal places.
+### `GET /api/v1/days`
 
-```json
-[
-  { "project": "Project A", "minutes": 320, "hours": 5.33 },
-  { "project": "Project B", "minutes": 180, "hours": 3.0 }
-]
-```
+Daily totals across range, zero-filled for missing dates.
 
-### `GET /api/days`
+### `GET /api/v1/weeks`
 
-One entry per calendar day in `[from, to]`. **Zero-filled** — days with no entries appear as `minutes: 0`. This guarantees contiguous data for bar charts.
+Weekly totals (Sunday-start weeks), sorted ascending.
 
-```json
-[
-  { "date": "2026-02-01", "minutes": 90, "hours": 1.5 },
-  { "date": "2026-02-02", "minutes": 0,  "hours": 0.0 },
-  { "date": "2026-02-03", "minutes": 60, "hours": 1.0 }
-]
-```
+### `GET /api/v1/planned-vs-actual`
 
-### `GET /api/weeks`
-
-One entry per Sunday-start week containing entries in range. Sorted ascending by `weekStart`.
-
-```json
-[
-  { "weekStart": "2026-02-08", "minutes": 640, "hours": 10.67 },
-  { "weekStart": "2026-02-15", "minutes": 300, "hours": 5.0 }
-]
-```
-
-### `GET /api/planned-vs-actual`
-
-Returns `501 Not Implemented`:
+Stub endpoint. Returns `501` with:
 
 ```json
 { "error": "not implemented" }
 ```
 
-### `GET /` (static files)
+## Static Frontend Serving
 
-Serves `frontend/dist/` — the built React SPA. Handles all non-API paths.
+When `serve_frontend=true`, `/` serves static files from `frontend_dir`.
+
+SPA routing fallback behavior:
+- Existing files are served directly.
+- Missing asset requests (for example `.js`/`.css`) return `404`.
+- Unknown client routes (for example `/reports/weekly`) serve `index.html`.
 
 ## CORS
 
-All responses carry `Access-Control-Allow-Origin: *`. OPTIONS preflight returns `204`. In production (Go serves both API and static files on the same port), CORS is irrelevant; headers are present for dev-mode convenience.
+CORS allow-list comes from `cors_allowed_origins`.
+- `OPTIONS` preflight returns `204` for allowed origins.
+- Disallowed preflight origins return `403`.
+- Set `["*"]` to allow all origins.
 
-## Key Invariants
+## Server Hardening
 
-**Date filtering** uses plain string comparison (`entry.Date >= from`). This is correct because `YYYY-MM-DD` is lexicographically ordered. Never parse `date` as UTC — it was written in the user's local timezone by the plugin.
+- Configurable read/read-header/write/idle HTTP timeouts.
+- Signal-based graceful shutdown (`SIGINT`, `SIGTERM`) with configurable shutdown timeout.
+- Store poller uses context cancellation and exits on shutdown.
 
-**Week-start** uses UTC noon to avoid DST day-boundary drift. This mirrors `src/core/date.ts:getWeekStartSunday` exactly. See `docs/aggregation-spec.md` for the algorithm.
+## OpenAPI
 
-**Project grouping** is case-sensitive. `"Project A"` and `"project a"` are separate buckets. The plugin preserves original case in JSONL output.
-
-**`/api/days` zero-fill** iterates the full `[from, to]` calendar range using `addDays`, not just dates present in the data. The frontend bar chart requires contiguous data.
+- Canonical API spec: `docs/openapi-dashboard-backend.yaml`
 
 ## Run
 
 ```bash
 go run .
-# or build a binary:
+# or:
 go build -o dashboard .
 ./dashboard
 ```
@@ -155,5 +142,3 @@ go build -o dashboard .
 ```bash
 go test ./...
 ```
-
-47 tests across `aggregator_test.go`, `handlers_test.go`, `loader_test.go`.

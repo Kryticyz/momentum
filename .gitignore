@@ -2,3 +2,5 @@
 **/.DS_Store
 **/.vite/
 **/dist/
+services/dashboard-backend/momentum-dashboard
+services/dashboard-backend/*.exe

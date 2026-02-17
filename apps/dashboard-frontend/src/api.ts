@@ -1,6 +1,7 @@
 import type { DateRange, DayStat, ProjectStat, WeekStat } from "./types";
 
 const BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "";
+const API_PREFIX = "/api/v1";
 
 async function fetchJSON<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`);
@@ -16,15 +17,15 @@ function rangeParams(range: DateRange): string {
 }
 
 export function fetchProjects(range: DateRange): Promise<ProjectStat[]> {
-  return fetchJSON<ProjectStat[]>(`/api/projects?${rangeParams(range)}`);
+  return fetchJSON<ProjectStat[]>(`${API_PREFIX}/projects?${rangeParams(range)}`);
 }
 
 export function fetchDays(range: DateRange): Promise<DayStat[]> {
-  return fetchJSON<DayStat[]>(`/api/days?${rangeParams(range)}`);
+  return fetchJSON<DayStat[]>(`${API_PREFIX}/days?${rangeParams(range)}`);
 }
 
 export function fetchWeeks(range: DateRange): Promise<WeekStat[]> {
-  return fetchJSON<WeekStat[]>(`/api/weeks?${rangeParams(range)}`);
+  return fetchJSON<WeekStat[]>(`${API_PREFIX}/weeks?${rangeParams(range)}`);
 }
 
 export async function postRefresh(): Promise<void> {

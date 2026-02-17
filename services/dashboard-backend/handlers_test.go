@@ -11,7 +11,7 @@ import (
 // newTestHandlers creates a Handlers instance with the given entries pre-loaded.
 func newTestHandlers(t *testing.T, entries []TimeEntry) *Handlers {
 	t.Helper()
-	store := &Store{}
+	store := NewStore("")
 	store.mu.Lock()
 	store.entries = entries
 	store.mu.Unlock()
@@ -20,7 +20,6 @@ func newTestHandlers(t *testing.T, entries []TimeEntry) *Handlers {
 		config: Config{
 			Timezone: "UTC",
 		},
-		path: "",
 	}
 }
 
@@ -63,7 +62,7 @@ func TestHealth_MethodNotAllowed(t *testing.T) {
 	}
 }
 
-// --- /api/projects ---
+// --- /api/v1/projects ---
 
 func TestProjects_ReturnsAggregated(t *testing.T) {
 	h := newTestHandlers(t, []TimeEntry{
@@ -71,7 +70,7 @@ func TestProjects_ReturnsAggregated(t *testing.T) {
 		makeEntry("2026-02-13", "Beta", 120),
 		makeEntry("2026-02-14", "Alpha", 30),
 	})
-	rr := get(t, h.Projects, "/api/projects?from=2026-02-12&to=2026-02-14")
+	rr := get(t, h.Projects, "/api/v1/projects?from=2026-02-12&to=2026-02-14")
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d body=%s", rr.Code, rr.Body)
 	}
@@ -93,12 +92,12 @@ func TestProjects_ReturnsAggregated(t *testing.T) {
 
 func TestProjects_EmptyRange(t *testing.T) {
 	h := newTestHandlers(t, []TimeEntry{makeEntry("2026-02-12", "A", 60)})
-	rr := get(t, h.Projects, "/api/projects?from=2026-03-01&to=2026-03-31")
+	rr := get(t, h.Projects, "/api/v1/projects?from=2026-03-01&to=2026-03-31")
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rr.Code)
 	}
 	var stats []ProjectStat
-	json.Unmarshal(rr.Body.Bytes(), &stats)
+	_ = json.Unmarshal(rr.Body.Bytes(), &stats)
 	if len(stats) != 0 {
 		t.Errorf("expected empty, got %+v", stats)
 	}
@@ -106,7 +105,7 @@ func TestProjects_EmptyRange(t *testing.T) {
 
 func TestProjects_InvalidFrom(t *testing.T) {
 	h := newTestHandlers(t, nil)
-	rr := get(t, h.Projects, "/api/projects?from=not-a-date&to=2026-02-28")
+	rr := get(t, h.Projects, "/api/v1/projects?from=not-a-date&to=2026-02-28")
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", rr.Code)
 	}
@@ -114,25 +113,25 @@ func TestProjects_InvalidFrom(t *testing.T) {
 
 func TestProjects_FromAfterTo(t *testing.T) {
 	h := newTestHandlers(t, nil)
-	rr := get(t, h.Projects, "/api/projects?from=2026-02-28&to=2026-02-01")
+	rr := get(t, h.Projects, "/api/v1/projects?from=2026-02-28&to=2026-02-01")
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", rr.Code)
 	}
 }
 
-// --- /api/days ---
+// --- /api/v1/days ---
 
 func TestDays_ZeroFilled(t *testing.T) {
 	h := newTestHandlers(t, []TimeEntry{
 		makeEntry("2026-02-01", "A", 60),
 		makeEntry("2026-02-03", "B", 30),
 	})
-	rr := get(t, h.Days, "/api/days?from=2026-02-01&to=2026-02-03")
+	rr := get(t, h.Days, "/api/v1/days?from=2026-02-01&to=2026-02-03")
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d body=%s", rr.Code, rr.Body)
 	}
 	var stats []DayStat
-	json.Unmarshal(rr.Body.Bytes(), &stats)
+	_ = json.Unmarshal(rr.Body.Bytes(), &stats)
 	if len(stats) != 3 {
 		t.Fatalf("expected 3 day entries (zero-filled), got %d", len(stats))
 	}
@@ -143,26 +142,26 @@ func TestDays_ZeroFilled(t *testing.T) {
 
 func TestDays_ContentTypeJSON(t *testing.T) {
 	h := newTestHandlers(t, nil)
-	rr := get(t, h.Days, "/api/days?from=2026-02-01&to=2026-02-01")
+	rr := get(t, h.Days, "/api/v1/days?from=2026-02-01&to=2026-02-01")
 	ct := rr.Header().Get("Content-Type")
 	if ct != "application/json" {
 		t.Errorf("expected Content-Type application/json, got %s", ct)
 	}
 }
 
-// --- /api/weeks ---
+// --- /api/v1/weeks ---
 
 func TestWeeks_SortedAscending(t *testing.T) {
 	h := newTestHandlers(t, []TimeEntry{
 		makeEntry("2026-02-15", "A", 90), // week of 2026-02-15
 		makeEntry("2026-02-08", "B", 60), // week of 2026-02-08
 	})
-	rr := get(t, h.Weeks, "/api/weeks?from=2026-02-08&to=2026-02-21")
+	rr := get(t, h.Weeks, "/api/v1/weeks?from=2026-02-08&to=2026-02-21")
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d body=%s", rr.Code, rr.Body)
 	}
 	var stats []WeekStat
-	json.Unmarshal(rr.Body.Bytes(), &stats)
+	_ = json.Unmarshal(rr.Body.Bytes(), &stats)
 	if len(stats) < 2 {
 		t.Fatalf("expected at least 2 weeks, got %d", len(stats))
 	}
@@ -171,34 +170,34 @@ func TestWeeks_SortedAscending(t *testing.T) {
 	}
 }
 
-// --- /api/entries ---
+// --- /api/v1/entries ---
 
 func TestEntries_ReturnsRawEntries(t *testing.T) {
 	h := newTestHandlers(t, []TimeEntry{
 		makeEntry("2026-02-12", "Alpha", 60),
 		makeEntry("2026-02-13", "Beta", 30),
 	})
-	rr := get(t, h.Entries, "/api/entries?from=2026-02-12&to=2026-02-13")
+	rr := get(t, h.Entries, "/api/v1/entries?from=2026-02-12&to=2026-02-13")
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rr.Code)
 	}
 	var entries []TimeEntry
-	json.Unmarshal(rr.Body.Bytes(), &entries)
+	_ = json.Unmarshal(rr.Body.Bytes(), &entries)
 	if len(entries) != 2 {
 		t.Errorf("expected 2 entries, got %d", len(entries))
 	}
 }
 
-// --- /api/planned-vs-actual ---
+// --- /api/v1/planned-vs-actual ---
 
 func TestPlannedVsActual_Returns501(t *testing.T) {
 	h := newTestHandlers(t, nil)
-	rr := get(t, h.PlannedVsActual, "/api/planned-vs-actual?from=2026-02-01&to=2026-02-28")
+	rr := get(t, h.PlannedVsActual, "/api/v1/planned-vs-actual?from=2026-02-01&to=2026-02-28")
 	if rr.Code != http.StatusNotImplemented {
 		t.Errorf("expected 501, got %d", rr.Code)
 	}
 	var body map[string]string
-	json.Unmarshal(rr.Body.Bytes(), &body)
+	_ = json.Unmarshal(rr.Body.Bytes(), &body)
 	if body["error"] != "not implemented" {
 		t.Errorf("expected error=not implemented, got %s", body["error"])
 	}
@@ -210,14 +209,13 @@ func TestRefresh_ReloadsStore(t *testing.T) {
 	// Write a temp JSONL file.
 	dir := t.TempDir()
 	f, _ := os.CreateTemp(dir, "*.jsonl")
-	f.WriteString(`{"source":"daily-note","filePath":"2026-02-12.md","date":"2026-02-12","project":"New","start":"09:00","end":"10:00","minutes":60,"note":"","lineNumber":1}` + "\n")
-	f.Close()
+	_, _ = f.WriteString(`{"source":"daily-note","filePath":"2026-02-12.md","date":"2026-02-12","project":"New","start":"09:00","end":"10:00","minutes":60,"note":"","lineNumber":1}` + "\n")
+	_ = f.Close()
 
-	store := &Store{}
+	store := NewStore(f.Name())
 	h := &Handlers{
 		store:  store,
 		config: Config{Timezone: "UTC"},
-		path:   f.Name(),
 	}
 
 	req := httptest.NewRequest(http.MethodPost, "/refresh", nil)
@@ -228,7 +226,7 @@ func TestRefresh_ReloadsStore(t *testing.T) {
 		t.Fatalf("expected 200, got %d body=%s", rr.Code, rr.Body)
 	}
 	var body map[string]any
-	json.Unmarshal(rr.Body.Bytes(), &body)
+	_ = json.Unmarshal(rr.Body.Bytes(), &body)
 	if count, _ := body["entries"].(float64); count != 1 {
 		t.Errorf("expected entries=1, got %v", body["entries"])
 	}
@@ -246,17 +244,18 @@ func TestRefresh_MethodNotAllowed(t *testing.T) {
 
 // --- CORS middleware ---
 
-func TestCORSMiddleware_AddsHeaders(t *testing.T) {
+func TestCORSMiddleware_AddsHeadersForAllowedOrigin(t *testing.T) {
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	handler := corsMiddleware(inner)
+	handler := corsMiddleware(inner, []string{"http://localhost:5173"})
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	req.Header.Set("Origin", "http://localhost:5173")
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
-	if rr.Header().Get("Access-Control-Allow-Origin") != "*" {
+	if rr.Header().Get("Access-Control-Allow-Origin") != "http://localhost:5173" {
 		t.Errorf("missing CORS origin header")
 	}
 }
@@ -265,13 +264,30 @@ func TestCORSMiddleware_HandlesPreflight(t *testing.T) {
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("inner handler should not be called for OPTIONS")
 	})
-	handler := corsMiddleware(inner)
+	handler := corsMiddleware(inner, []string{"http://localhost:5173"})
 
-	req := httptest.NewRequest(http.MethodOptions, "/api/projects", nil)
+	req := httptest.NewRequest(http.MethodOptions, "/api/v1/projects", nil)
+	req.Header.Set("Origin", "http://localhost:5173")
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusNoContent {
 		t.Errorf("expected 204 for OPTIONS, got %d", rr.Code)
+	}
+}
+
+func TestCORSMiddleware_RejectsDisallowedPreflight(t *testing.T) {
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("inner handler should not be called for OPTIONS")
+	})
+	handler := corsMiddleware(inner, []string{"http://localhost:5173"})
+
+	req := httptest.NewRequest(http.MethodOptions, "/api/v1/projects", nil)
+	req.Header.Set("Origin", "http://example.com")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("expected 403 for disallowed OPTIONS, got %d", rr.Code)
 	}
 }

@@ -1,16 +1,18 @@
 # Backend Contract (Go Dashboard Service)
 
-This defines the handoff between the Obsidian plugin and a local self-hosted Go service.
+Defines the data/API contract between producers (Obsidian export) and consumers (dashboard and future clients).
 
 ## Input Source
+
 Default export file from plugin:
 - `.obsidian/momentum/time-entries.jsonl`
 
 Refresh behavior:
-- Poll every 1 hour (configurable)
-- Manual refresh endpoint for immediate re-read
+- Optional polling reload (`poll_interval_hours`)
+- Manual refresh via `POST /refresh`
 
 ## JSONL Record Schema
+
 Each line is one JSON object.
 
 ```json
@@ -28,9 +30,9 @@ Each line is one JSON object.
 ```
 
 Field notes:
-- `date` is local note date (timezone-aware from plugin setting)
-- `minutes` is authoritative for aggregation
-- `project` is project note name (wiki-link target leaf)
+- `date` is local note date (timezone-aware from plugin setting).
+- `minutes` is authoritative for aggregation.
+- `project` is the project note title (wiki-link target leaf).
 
 ## Go In-Memory Model
 
@@ -48,25 +50,22 @@ type TimeEntry struct {
 }
 ```
 
-## Aggregations Needed
-- Per project total minutes (range)
-- Per day total minutes (range)
-- Weekly trend (Sunday-start week)
+## API (v1)
 
-Timezone:
-- Default `Australia/Sydney`
-- Configurable in backend config
-
-## Suggested API (v1)
 - `GET /health`
-- `POST /refresh` (manual reload of JSONL)
-- `GET /api/entries?from=YYYY-MM-DD&to=YYYY-MM-DD`
-- `GET /api/projects?from=YYYY-MM-DD&to=YYYY-MM-DD`
-- `GET /api/days?from=YYYY-MM-DD&to=YYYY-MM-DD`
-- `GET /api/weeks?from=YYYY-MM-DD&to=YYYY-MM-DD`
+- `POST /refresh`
+- `GET /api/v1/entries?from=YYYY-MM-DD&to=YYYY-MM-DD`
+- `GET /api/v1/projects?from=YYYY-MM-DD&to=YYYY-MM-DD`
+- `GET /api/v1/days?from=YYYY-MM-DD&to=YYYY-MM-DD`
+- `GET /api/v1/weeks?from=YYYY-MM-DD&to=YYYY-MM-DD`
+- `GET /api/v1/planned-vs-actual?from=YYYY-MM-DD&to=YYYY-MM-DD` (stub)
 
-## Response Shape Suggestions
-### `/api/projects`
+`from` and `to` default to last 30 days in configured timezone if omitted.
+
+## Response Shapes
+
+### `/api/v1/projects`
+
 ```json
 [
   {
@@ -77,7 +76,8 @@ Timezone:
 ]
 ```
 
-### `/api/days`
+### `/api/v1/days`
+
 ```json
 [
   {
@@ -87,7 +87,8 @@ Timezone:
 ]
 ```
 
-### `/api/weeks`
+### `/api/v1/weeks`
+
 ```json
 [
   {
@@ -97,8 +98,16 @@ Timezone:
 ]
 ```
 
-## Planned vs Actual (Stub)
-Keep endpoint placeholder for future goals/plan ingestion:
-- `GET /api/planned-vs-actual?from=YYYY-MM-DD&to=YYYY-MM-DD`
+### `/api/v1/planned-vs-actual`
 
-For now, return an empty array or `501 Not Implemented`.
+Current response:
+
+```json
+{ "error": "not implemented" }
+```
+
+## Operational Notes
+
+- CORS is allow-list based (`cors_allowed_origins`), with `["*"]` as wildcard option.
+- Server supports API-only, frontend-only, or combined mode (`serve_api`, `serve_frontend`).
+- Frontend SPA fallback serves `index.html` for client routes, but not for missing static assets.

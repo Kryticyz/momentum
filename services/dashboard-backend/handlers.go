@@ -13,31 +13,32 @@ var isoDateRe = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 
 // Handlers holds the shared dependencies for all HTTP handlers.
 type Handlers struct {
-	store  *Store
+	store  EntryStore
 	config Config
-	path   string // JSONL path for refresh
 }
 
 // Health handles GET /health.
 func (h *Handlers) Health(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
+	lastLoaded := ""
+	if ts := h.store.LastLoaded(); !ts.IsZero() {
+		lastLoaded = ts.Format(time.RFC3339)
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"status":      "ok",
-		"entries":     h.store.Count(),
-		"lastLoaded":  h.store.LastLoaded().Format(time.RFC3339),
+		"status":     "ok",
+		"entries":    h.store.Count(),
+		"lastLoaded": lastLoaded,
 	})
 }
 
 // Refresh handles POST /refresh — reloads the JSONL file immediately.
 func (h *Handlers) Refresh(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
-	if err := h.store.Load(h.path); err != nil {
+	if err := h.store.Reload(); err != nil {
 		log.Printf("Refresh: %v", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]any{
 			"error": err.Error(),
@@ -50,8 +51,11 @@ func (h *Handlers) Refresh(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Entries handles GET /api/entries — returns raw filtered entries.
+// Entries handles GET /api/v1/entries — returns raw filtered entries.
 func (h *Handlers) Entries(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
 	from, to, errMsg := h.parseDateRange(r)
 	if errMsg != "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": errMsg})
@@ -64,8 +68,11 @@ func (h *Handlers) Entries(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, entries)
 }
 
-// Projects handles GET /api/projects.
+// Projects handles GET /api/v1/projects.
 func (h *Handlers) Projects(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
 	from, to, errMsg := h.parseDateRange(r)
 	if errMsg != "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": errMsg})
@@ -79,8 +86,11 @@ func (h *Handlers) Projects(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, stats)
 }
 
-// Days handles GET /api/days.
+// Days handles GET /api/v1/days.
 func (h *Handlers) Days(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
 	from, to, errMsg := h.parseDateRange(r)
 	if errMsg != "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": errMsg})
@@ -94,8 +104,11 @@ func (h *Handlers) Days(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, stats)
 }
 
-// Weeks handles GET /api/weeks.
+// Weeks handles GET /api/v1/weeks.
 func (h *Handlers) Weeks(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
 	from, to, errMsg := h.parseDateRange(r)
 	if errMsg != "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": errMsg})
@@ -109,8 +122,11 @@ func (h *Handlers) Weeks(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, stats)
 }
 
-// PlannedVsActual handles GET /api/planned-vs-actual — stub, returns 501.
+// PlannedVsActual handles GET /api/v1/planned-vs-actual — stub, returns 501.
 func (h *Handlers) PlannedVsActual(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
 	writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "not implemented"})
 }
 
@@ -155,4 +171,12 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	if err := json.NewEncoder(w).Encode(v); err != nil {
 		log.Printf("writeJSON encode error: %v", err)
 	}
+}
+
+func requireMethod(w http.ResponseWriter, r *http.Request, method string) bool {
+	if r.Method != method {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return false
+	}
+	return true
 }

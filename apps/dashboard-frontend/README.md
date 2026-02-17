@@ -42,9 +42,9 @@ App
 
 | Export | Method | Path |
 |---|---|---|
-| `fetchProjects(range)` | GET | `/api/projects?from=…&to=…` |
-| `fetchDays(range)` | GET | `/api/days?from=…&to=…` |
-| `fetchWeeks(range)` | GET | `/api/weeks?from=…&to=…` |
+| `fetchProjects(range)` | GET | `/api/v1/projects?from=…&to=…` |
+| `fetchDays(range)` | GET | `/api/v1/days?from=…&to=…` |
+| `fetchWeeks(range)` | GET | `/api/v1/weeks?from=…&to=…` |
 | `postRefresh()` | POST | `/refresh` |
 
 `VITE_API_BASE_URL` is prepended to all paths. When unset (empty string), paths are relative — correct for both the Vite dev proxy and the production single-origin setup.
