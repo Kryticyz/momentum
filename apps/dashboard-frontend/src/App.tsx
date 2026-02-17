@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { DateRangePicker } from "./components/DateRangePicker";
 import { DailyHoursChart } from "./components/DailyHoursChart";
+import { HeatmapChart } from "./components/HeatmapChart";
 import { ProjectBreakdown } from "./components/ProjectBreakdown";
 import { RefreshButton } from "./components/RefreshButton";
 import { WeeklyTrendChart } from "./components/WeeklyTrendChart";
+import { useHeatmapData } from "./hooks/useHeatmapData";
 import { useTimeData } from "./hooks/useTimeData";
 import type { DateRange } from "./types";
 
@@ -21,6 +23,7 @@ export function App() {
   const [range, setRange] = useState<DateRange>(defaultRange);
   const [refreshKey, setRefreshKey] = useState(0);
   const { projects, days, weeks, loading, error } = useTimeData(range, refreshKey);
+  const { days: heatmapDays, loading: heatmapLoading } = useHeatmapData(refreshKey);
 
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", padding: "24px 16px" }}>
@@ -56,6 +59,14 @@ export function App() {
           }}
         >
           {error}
+        </div>
+      )}
+
+      {!heatmapLoading && (
+        <div style={{ marginBottom: 40 }}>
+          <Section title="Activity — Past Year">
+            <HeatmapChart data={heatmapDays} />
+          </Section>
         </div>
       )}
 
