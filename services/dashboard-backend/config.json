@@ -1,0 +1,7 @@
+{
+  "jsonl_path": "/Users/kryticyz/Documents/brain/.obsidian/project-insights/time-entries.jsonl",
+  "port": 8080,
+  "timezone": "Australia/Sydney",
+  "poll_interval_hours": 1,
+  "frontend_dir": "./frontend/dist"
+}
