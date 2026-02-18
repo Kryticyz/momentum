@@ -1,7 +1,15 @@
 {
-  "jsonl_path": "/Users/kryticyz/Documents/brain/.obsidian/momentum/time-entries.jsonl",
+  "jsonl_path": "",
   "port": 8080,
   "timezone": "Australia/Sydney",
   "poll_interval_hours": 1,
-  "frontend_dir": "./frontend/dist"
+  "serve_api": true,
+  "serve_frontend": true,
+  "frontend_dir": "./frontend/dist",
+  "cors_allowed_origins": ["http://localhost:5173"],
+  "read_timeout_seconds": 15,
+  "read_header_timeout_seconds": 10,
+  "write_timeout_seconds": 30,
+  "idle_timeout_seconds": 60,
+  "shutdown_timeout_seconds": 10
 }

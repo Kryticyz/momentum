@@ -1,10 +1,14 @@
 import { useState } from "react";
+import { ChartErrorBoundary } from "./components/ChartErrorBoundary";
 import { DateRangePicker } from "./components/DateRangePicker";
 import { DailyHoursChart } from "./components/DailyHoursChart";
+import { HeatmapChart } from "./components/HeatmapChart";
 import { ProjectBreakdown } from "./components/ProjectBreakdown";
 import { RefreshButton } from "./components/RefreshButton";
 import { WeeklyTrendChart } from "./components/WeeklyTrendChart";
+import { useHeatmapData } from "./hooks/useHeatmapData";
 import { useTimeData } from "./hooks/useTimeData";
+import { theme } from "./theme";
 import type { DateRange } from "./types";
 
 function defaultRange(): DateRange {
@@ -21,6 +25,7 @@ export function App() {
   const [range, setRange] = useState<DateRange>(defaultRange);
   const [refreshKey, setRefreshKey] = useState(0);
   const { projects, days, weeks, loading, error } = useTimeData(range, refreshKey);
+  const { days: heatmapDays, loading: heatmapLoading } = useHeatmapData(refreshKey);
 
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", padding: "24px 16px" }}>
@@ -34,7 +39,7 @@ export function App() {
           marginBottom: 32,
         }}
       >
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: "#f1f5f9" }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: theme.colors.heading }}>
           Momentum
         </h1>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center" }}>
@@ -46,11 +51,11 @@ export function App() {
       {error && (
         <div
           style={{
-            background: "#450a0a",
-            border: "1px solid #7f1d1d",
+            background: theme.colors.errorBg,
+            border: `1px solid ${theme.colors.errorBorder}`,
             borderRadius: 8,
             padding: "12px 16px",
-            color: "#fca5a5",
+            color: theme.colors.errorText,
             marginBottom: 24,
             fontSize: 13,
           }}
@@ -59,8 +64,18 @@ export function App() {
         </div>
       )}
 
+      {!heatmapLoading && (
+        <div style={{ marginBottom: 40 }}>
+          <Section title="Activity — Past Year">
+            <ChartErrorBoundary>
+              <HeatmapChart data={heatmapDays} />
+            </ChartErrorBoundary>
+          </Section>
+        </div>
+      )}
+
       {loading && (
-        <p style={{ color: "#64748b", textAlign: "center", padding: "48px 0" }}>
+        <p style={{ color: theme.colors.muted, textAlign: "center", padding: "48px 0" }}>
           Loading…
         </p>
       )}
@@ -68,13 +83,19 @@ export function App() {
       {!loading && (
         <div style={{ display: "flex", flexDirection: "column", gap: 40 }}>
           <Section title="Project Breakdown">
-            <ProjectBreakdown data={projects} />
+            <ChartErrorBoundary>
+              <ProjectBreakdown data={projects} />
+            </ChartErrorBoundary>
           </Section>
           <Section title="Daily Hours">
-            <DailyHoursChart data={days} />
+            <ChartErrorBoundary>
+              <DailyHoursChart data={days} />
+            </ChartErrorBoundary>
           </Section>
           <Section title="Weekly Trend">
-            <WeeklyTrendChart data={weeks} />
+            <ChartErrorBoundary>
+              <WeeklyTrendChart data={weeks} />
+            </ChartErrorBoundary>
           </Section>
         </div>
       )}
@@ -89,7 +110,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
         style={{
           fontSize: 15,
           fontWeight: 600,
-          color: "#94a3b8",
+          color: theme.colors.sectionTitle,
           textTransform: "uppercase",
           letterSpacing: "0.06em",
           marginBottom: 16,
@@ -99,10 +120,10 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       </h2>
       <div
         style={{
-          background: "#1e293b",
+          background: theme.colors.cardBg,
           borderRadius: 10,
           padding: "20px 16px",
-          border: "1px solid #334155",
+          border: `1px solid ${theme.colors.cardBorder}`,
         }}
       >
         {children}

@@ -1,0 +1,277 @@
+openapi: 3.0.3
+info:
+  title: Momentum Dashboard Backend API
+  version: 1.0.0
+  description: API contract for the local momentum dashboard backend.
+servers:
+  - url: http://localhost:8080
+tags:
+  - name: Health
+  - name: Refresh
+  - name: Entries
+  - name: Aggregates
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Service health and store metadata
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /refresh:
+    post:
+      tags: [Refresh]
+      summary: Reload JSONL data into memory
+      responses:
+        '200':
+          description: Refresh succeeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshResponse'
+        '500':
+          description: Refresh failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/entries:
+    get:
+      tags: [Entries]
+      summary: Raw entries filtered by date range
+      parameters:
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+      responses:
+        '200':
+          description: Raw entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TimeEntry'
+        '400':
+          description: Invalid date range
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/projects:
+    get:
+      tags: [Aggregates]
+      summary: Project totals in range
+      parameters:
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+      responses:
+        '200':
+          description: Project aggregates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProjectStat'
+        '400':
+          description: Invalid date range
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/days:
+    get:
+      tags: [Aggregates]
+      summary: Daily totals (zero-filled)
+      parameters:
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+      responses:
+        '200':
+          description: Daily aggregates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DayStat'
+        '400':
+          description: Invalid date range
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/weeks:
+    get:
+      tags: [Aggregates]
+      summary: Weekly totals
+      parameters:
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+      responses:
+        '200':
+          description: Weekly aggregates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WeekStat'
+        '400':
+          description: Invalid date range
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/planned-vs-actual:
+    get:
+      tags: [Aggregates]
+      summary: Planned vs actual (stub)
+      parameters:
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+      responses:
+        '501':
+          description: Not implemented
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  parameters:
+    From:
+      name: from
+      in: query
+      required: false
+      schema:
+        type: string
+        pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: Start date in YYYY-MM-DD format.
+    To:
+      name: to
+      in: query
+      required: false
+      schema:
+        type: string
+        pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: End date in YYYY-MM-DD format.
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status, entries, lastLoaded]
+      properties:
+        status:
+          type: string
+          example: ok
+        entries:
+          type: integer
+          example: 142
+        lastLoaded:
+          type: string
+          description: RFC3339 timestamp, or empty string when never loaded.
+          example: '2026-02-17T19:52:49+11:00'
+    RefreshResponse:
+      type: object
+      required: [ok, entries]
+      properties:
+        ok:
+          type: boolean
+          example: true
+        entries:
+          type: integer
+          example: 142
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    TimeEntry:
+      type: object
+      required:
+        - source
+        - filePath
+        - date
+        - project
+        - start
+        - end
+        - minutes
+        - note
+        - lineNumber
+      properties:
+        source:
+          type: string
+          example: daily-note
+        filePath:
+          type: string
+          example: 2026-02-12.md
+        date:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+          example: 2026-02-12
+        project:
+          type: string
+          example: Project A
+        start:
+          type: string
+          example: '09:10'
+        end:
+          type: string
+          example: '09:45'
+        minutes:
+          type: integer
+          example: 35
+        note:
+          type: string
+          example: Deep work
+        lineNumber:
+          type: integer
+          example: 42
+    ProjectStat:
+      type: object
+      required: [project, minutes, hours]
+      properties:
+        project:
+          type: string
+          example: Project A
+        minutes:
+          type: integer
+          example: 320
+        hours:
+          type: number
+          format: double
+          example: 5.33
+    DayStat:
+      type: object
+      required: [date, minutes, hours]
+      properties:
+        date:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+          example: 2026-02-12
+        minutes:
+          type: integer
+          example: 180
+        hours:
+          type: number
+          format: double
+          example: 3
+    WeekStat:
+      type: object
+      required: [weekStart, minutes, hours]
+      properties:
+        weekStart:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+          example: 2026-02-08
+        minutes:
+          type: integer
+          example: 640
+        hours:
+          type: number
+          format: double
+          example: 10.67

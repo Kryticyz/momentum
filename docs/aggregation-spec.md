@@ -103,7 +103,7 @@ Midnight UTC can roll back or forward a day when converted to a local timezone. 
 
 **Sort order:** ascending by `WeekStart` string (lexicographic, safe for `YYYY-MM-DD`).
 
-**No zero-fill for weeks.** Unlike `/api/days`, weeks without any entries are simply omitted. This is intentional — sparse weekly data is still legible on a line chart, and the exact date range for week-filling is ambiguous when entries span week boundaries outside the query range.
+**No zero-fill for weeks.** Unlike `/api/v1/days`, weeks without any entries are simply omitted. This is intentional — sparse weekly data is still legible on a line chart, and the exact date range for week-filling is ambiguous when entries span week boundaries outside the query range.
 
 ---
 

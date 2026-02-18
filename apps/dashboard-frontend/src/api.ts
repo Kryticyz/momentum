@@ -1,9 +1,10 @@
 import type { DateRange, DayStat, ProjectStat, WeekStat } from "./types";
 
 const BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "";
+const API_PREFIX = "/api/v1";
 
-async function fetchJSON<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`);
+async function fetchJSON<T>(path: string, signal?: AbortSignal): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, { signal });
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`${res.status} ${res.statusText}: ${text}`);
@@ -15,16 +16,16 @@ function rangeParams(range: DateRange): string {
   return `from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`;
 }
 
-export function fetchProjects(range: DateRange): Promise<ProjectStat[]> {
-  return fetchJSON<ProjectStat[]>(`/api/projects?${rangeParams(range)}`);
+export function fetchProjects(range: DateRange, signal?: AbortSignal): Promise<ProjectStat[]> {
+  return fetchJSON<ProjectStat[]>(`${API_PREFIX}/projects?${rangeParams(range)}`, signal);
 }
 
-export function fetchDays(range: DateRange): Promise<DayStat[]> {
-  return fetchJSON<DayStat[]>(`/api/days?${rangeParams(range)}`);
+export function fetchDays(range: DateRange, signal?: AbortSignal): Promise<DayStat[]> {
+  return fetchJSON<DayStat[]>(`${API_PREFIX}/days?${rangeParams(range)}`, signal);
 }
 
-export function fetchWeeks(range: DateRange): Promise<WeekStat[]> {
-  return fetchJSON<WeekStat[]>(`/api/weeks?${rangeParams(range)}`);
+export function fetchWeeks(range: DateRange, signal?: AbortSignal): Promise<WeekStat[]> {
+  return fetchJSON<WeekStat[]>(`${API_PREFIX}/weeks?${rangeParams(range)}`, signal);
 }
 
 export async function postRefresh(): Promise<void> {

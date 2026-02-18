@@ -20,28 +20,28 @@ export function useTimeData(range: DateRange, refreshKey: number): TimeData {
   });
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
+    const { signal } = controller;
     setData((prev) => ({ ...prev, loading: true, error: null }));
 
     Promise.all([
-      fetchProjects(range),
-      fetchDays(range),
-      fetchWeeks(range),
+      fetchProjects(range, signal),
+      fetchDays(range, signal),
+      fetchWeeks(range, signal),
     ])
       .then(([projects, days, weeks]) => {
-        if (!cancelled) {
+        if (!signal.aborted) {
           setData({ projects, days, weeks, loading: false, error: null });
         }
       })
       .catch((err: unknown) => {
-        if (!cancelled) {
-          const message = err instanceof Error ? err.message : String(err);
-          setData({ projects: [], days: [], weeks: [], loading: false, error: message });
-        }
+        if (signal.aborted) return;
+        const message = err instanceof Error ? err.message : String(err);
+        setData({ projects: [], days: [], weeks: [], loading: false, error: message });
       });
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [range.from, range.to, refreshKey]);

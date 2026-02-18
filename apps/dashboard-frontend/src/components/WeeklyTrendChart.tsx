@@ -7,6 +7,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { theme } from "../theme";
 import type { WeekStat } from "../types";
 
 interface Props {
@@ -16,7 +17,7 @@ interface Props {
 export function WeeklyTrendChart({ data }: Props) {
   if (data.length === 0) {
     return (
-      <p style={{ color: "#475569", textAlign: "center", padding: "32px 0" }}>
+      <p style={{ color: theme.colors.emptyState, textAlign: "center", padding: "32px 0" }}>
         No data for selected range.
       </p>
     );
@@ -25,19 +26,19 @@ export function WeeklyTrendChart({ data }: Props) {
   return (
     <ResponsiveContainer width="100%" height={280}>
       <LineChart data={data} margin={{ top: 4, right: 16, bottom: 4, left: 8 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+        <CartesianGrid strokeDasharray="3 3" stroke={theme.colors.gridStroke} />
         <XAxis
           dataKey="weekStart"
           tickFormatter={(d: string) => d.slice(5)} // MM-DD
-          tick={{ fill: "#94a3b8", fontSize: 11 }}
+          tick={{ fill: theme.colors.axisTick, fontSize: 11 }}
         />
         <YAxis
           tickFormatter={(v: number) => `${(v / 60).toFixed(1)}h`}
-          tick={{ fill: "#94a3b8", fontSize: 12 }}
+          tick={{ fill: theme.colors.axisTick, fontSize: 12 }}
         />
         <Tooltip
-          contentStyle={{ background: "#1e293b", border: "1px solid #334155" }}
-          labelStyle={{ color: "#e2e8f0" }}
+          contentStyle={{ background: theme.colors.tooltipBg, border: `1px solid ${theme.colors.tooltipBorder}` }}
+          labelStyle={{ color: theme.colors.tooltipLabel }}
           formatter={(value: number) => [
             `${value}m (${(value / 60).toFixed(1)}h)`,
             "Week total",
@@ -46,8 +47,8 @@ export function WeeklyTrendChart({ data }: Props) {
         <Line
           type="monotone"
           dataKey="minutes"
-          stroke="#f59e0b"
-          dot={{ fill: "#f59e0b", r: 4 }}
+          stroke={theme.colors.lineWeekly}
+          dot={{ fill: theme.colors.lineWeekly, r: 4 }}
           strokeWidth={2}
         />
       </LineChart>

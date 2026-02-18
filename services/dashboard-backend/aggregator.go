@@ -8,21 +8,21 @@ import (
 	"time"
 )
 
-// ProjectStat is the response element for /api/projects.
+// ProjectStat is the response element for /api/v1/projects.
 type ProjectStat struct {
 	Project string  `json:"project"`
 	Minutes int     `json:"minutes"`
 	Hours   float64 `json:"hours"`
 }
 
-// DayStat is the response element for /api/days.
+// DayStat is the response element for /api/v1/days.
 type DayStat struct {
-	Date    string `json:"date"`
-	Minutes int    `json:"minutes"`
+	Date    string  `json:"date"`
+	Minutes int     `json:"minutes"`
 	Hours   float64 `json:"hours"`
 }
 
-// WeekStat is the response element for /api/weeks.
+// WeekStat is the response element for /api/v1/weeks.
 type WeekStat struct {
 	WeekStart string  `json:"weekStart"`
 	Minutes   int     `json:"minutes"`
