@@ -7,6 +7,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { theme } from "../theme";
 import type { ProjectStat } from "../types";
 
 interface Props {
@@ -27,27 +28,27 @@ export function ProjectBreakdown({ data }: Props) {
         data={data}
         margin={{ top: 4, right: 32, bottom: 4, left: 8 }}
       >
-        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+        <CartesianGrid strokeDasharray="3 3" stroke={theme.colors.gridStroke} />
         <XAxis
           type="number"
           tickFormatter={(v: number) => `${(v / 60).toFixed(1)}h`}
-          tick={{ fill: "#94a3b8", fontSize: 12 }}
+          tick={{ fill: theme.colors.axisTick, fontSize: 12 }}
         />
         <YAxis
           type="category"
           dataKey="project"
           width={150}
-          tick={{ fill: "#e2e8f0", fontSize: 12 }}
+          tick={{ fill: theme.colors.axisLabel, fontSize: 12 }}
         />
         <Tooltip
-          contentStyle={{ background: "#1e293b", border: "1px solid #334155" }}
-          labelStyle={{ color: "#e2e8f0" }}
+          contentStyle={{ background: theme.colors.tooltipBg, border: `1px solid ${theme.colors.tooltipBorder}` }}
+          labelStyle={{ color: theme.colors.tooltipLabel }}
           formatter={(value: number) => [
             `${value}m (${(value / 60).toFixed(1)}h)`,
             "Time",
           ]}
         />
-        <Bar dataKey="minutes" fill="#6366f1" radius={[0, 4, 4, 0]} />
+        <Bar dataKey="minutes" fill={theme.colors.barProject} radius={[0, 4, 4, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -55,7 +56,7 @@ export function ProjectBreakdown({ data }: Props) {
 
 function EmptyState() {
   return (
-    <p style={{ color: "#475569", textAlign: "center", padding: "32px 0" }}>
+    <p style={{ color: theme.colors.emptyState, textAlign: "center", padding: "32px 0" }}>
       No data for selected range.
     </p>
   );

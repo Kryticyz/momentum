@@ -31,25 +31,25 @@ export function useHeatmapData(refreshKey: number): HeatmapData {
   });
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
+    const { signal } = controller;
     setData((prev) => ({ ...prev, loading: true, error: null }));
 
     const range = heatmapDateRange();
-    fetchDays(range)
+    fetchDays(range, signal)
       .then((days) => {
-        if (!cancelled) {
+        if (!signal.aborted) {
           setData({ days, loading: false, error: null });
         }
       })
       .catch((err: unknown) => {
-        if (!cancelled) {
-          const message = err instanceof Error ? err.message : String(err);
-          setData({ days: [], loading: false, error: message });
-        }
+        if (signal.aborted) return;
+        const message = err instanceof Error ? err.message : String(err);
+        setData({ days: [], loading: false, error: message });
       });
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);

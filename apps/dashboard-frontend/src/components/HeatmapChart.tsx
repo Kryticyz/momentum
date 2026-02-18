@@ -1,3 +1,4 @@
+import { theme } from "../theme";
 import type { DayStat } from "../types";
 
 // ── Layout constants ──────────────────────────────────────────────────────
@@ -10,17 +11,10 @@ const LABEL_TOP = 20;  // px reserved for month labels above grid
 
 // ── Color scale ───────────────────────────────────────────────────────────
 // Level 0 = empty (matches card background), Level 4 = brightest green
-// (matches DailyHoursChart bar color #22c55e).
+// (matches DailyHoursChart bar color).
 
-const COLORS: Record<0 | 1 | 2 | 3 | 4, string> = {
-  0: "#1e293b",
-  1: "#14532d",
-  2: "#166534",
-  3: "#15803d",
-  4: "#22c55e",
-};
-
-const BORDER_COLOR = "#334155";
+const COLORS = theme.colors.heatmap;
+const BORDER_COLOR = theme.colors.heatmapBorder;
 
 const DOW_LABELS = [
   { row: 1, label: "Mon" },
@@ -105,7 +99,7 @@ interface Props {
 export function HeatmapChart({ data }: Props) {
   if (data.length === 0) {
     return (
-      <p style={{ color: "#475569", textAlign: "center", padding: "32px 0" }}>
+      <p style={{ color: theme.colors.emptyState, textAlign: "center", padding: "32px 0" }}>
         No activity data for the past year.
       </p>
     );
@@ -181,7 +175,7 @@ export function HeatmapChart({ data }: Props) {
             x={LABEL_LEFT + col * CELL_STEP + CELL_SIZE / 2}
             y={LABEL_TOP - 6}
             fontSize={10}
-            fill="#94a3b8"
+            fill={theme.colors.label}
             textAnchor="middle"
           >
             {label}
@@ -195,7 +189,7 @@ export function HeatmapChart({ data }: Props) {
             x={LABEL_LEFT - 4}
             y={LABEL_TOP + row * CELL_STEP + CELL_SIZE - 2}
             fontSize={10}
-            fill="#94a3b8"
+            fill={theme.colors.label}
             textAnchor="end"
           >
             {label}

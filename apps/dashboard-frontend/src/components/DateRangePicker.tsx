@@ -1,3 +1,4 @@
+import { theme } from "../theme";
 import type { DateRange } from "../types";
 
 interface Props {
@@ -23,7 +24,7 @@ export function DateRangePicker({ range, onChange }: Props) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
       <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <span style={{ color: "#94a3b8", fontSize: 13 }}>From</span>
+        <span style={{ color: theme.colors.label, fontSize: 13 }}>From</span>
         <input
           type="date"
           value={range.from}
@@ -32,7 +33,7 @@ export function DateRangePicker({ range, onChange }: Props) {
         />
       </label>
       <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <span style={{ color: "#94a3b8", fontSize: 13 }}>To</span>
+        <span style={{ color: theme.colors.label, fontSize: 13 }}>To</span>
         <input
           type="date"
           value={range.to}
@@ -45,10 +46,10 @@ export function DateRangePicker({ range, onChange }: Props) {
 }
 
 const inputStyle: React.CSSProperties = {
-  background: "#1e293b",
-  border: "1px solid #334155",
+  background: theme.colors.inputBg,
+  border: `1px solid ${theme.colors.inputBorder}`,
   borderRadius: 6,
-  color: "#e2e8f0",
+  color: theme.colors.inputText,
   padding: "4px 8px",
   fontSize: 13,
 };

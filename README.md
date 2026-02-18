@@ -38,8 +38,19 @@ Frontend:
 
 ```bash
 cd apps/dashboard-frontend
-npm install
-npm test
-npm run build
-npm run dev
+bun install
+bun test
+bun run build
+bun run dev
 ```
+
+## Full build
+
+From the repository root:
+
+```bash
+./build.sh
+```
+
+Installs frontend dependencies, builds the React app into the backend's static
+directory, and compiles the Go binary.

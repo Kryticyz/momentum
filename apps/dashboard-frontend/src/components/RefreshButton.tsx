@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { postRefresh } from "../api";
+import { theme } from "../theme";
 
 interface Props {
   onRefresh: () => void;
@@ -28,8 +29,8 @@ export function RefreshButton({ onRefresh }: Props) {
         onClick={handleClick}
         disabled={loading}
         style={{
-          background: loading ? "#334155" : "#3b82f6",
-          color: "#fff",
+          background: loading ? theme.colors.buttonDisabled : theme.colors.buttonPrimary,
+          color: theme.colors.buttonText,
           border: "none",
           borderRadius: 6,
           padding: "6px 14px",
@@ -40,7 +41,7 @@ export function RefreshButton({ onRefresh }: Props) {
         {loading ? "Refreshing…" : "Refresh data"}
       </button>
       {error && (
-        <span style={{ color: "#f87171", fontSize: 12 }}>{error}</span>
+        <span style={{ color: theme.colors.errorInline, fontSize: 12 }}>{error}</span>
       )}
     </div>
   );
