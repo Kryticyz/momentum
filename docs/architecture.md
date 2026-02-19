@@ -33,3 +33,44 @@ Planned future consumers include native mobile and widget surfaces. To support t
 - Lower operational overhead while the platform is still early.
 
 When native clients are active and release cadence diverges, splitting by client can be revisited.
+
+## EntryStore interface evolution for PostgreSQL
+
+The `EntryStore` interface in `services/dashboard-backend/storage.go` is the seam for future database migration.
+
+Current interface:
+
+```go
+type EntryStore interface {
+    Entries() []TimeEntry
+    Count() int
+    LastLoaded() time.Time
+    Reload() error
+    Version() string
+}
+```
+
+When PostgreSQL is introduced, the interface gains:
+
+```go
+EntriesInRange(from, to string) ([]TimeEntry, error)
+```
+
+Handlers switch from:
+```go
+entries := filterByRange(h.store.Entries(), from, to)
+```
+To:
+```go
+entries, err := h.store.EntriesInRange(from, to)
+```
+
+The in-memory `Store` implements `EntriesInRange` by calling `filterByRange` internally. The PostgreSQL `Store` implements it with a `WHERE` clause. `Version()` becomes a database-level version indicator (e.g., sequence number or `MAX(updated_at)`).
+
+## Client type generation from OpenAPI
+
+The `docs/openapi-dashboard-backend.yaml` spec is the single source of truth for API types.
+
+- **TypeScript** (web dashboard): Generate types with `openapi-typescript` from the OpenAPI spec.
+- **Swift** (macOS app): Generate types with Apple's `swift-openapi-generator` from the same spec.
+- **Go** (backend): Structs are authoritative; contract tests validate they match the spec.

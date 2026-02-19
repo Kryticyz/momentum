@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -74,6 +75,17 @@ func (s *Store) LastLoaded() time.Time {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.lastLoaded
+}
+
+// Version returns an opaque string that changes whenever the store data changes.
+// Used for ETag generation and change detection.
+func (s *Store) Version() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.lastLoaded.IsZero() {
+		return ""
+	}
+	return fmt.Sprintf("%x", s.lastLoaded.UnixNano())
 }
 
 // StartPoller launches a background goroutine that reloads the JSONL file

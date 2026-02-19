@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 )
 
 // newTestHandlers creates a Handlers instance with the given entries pre-loaded.
@@ -14,6 +15,24 @@ func newTestHandlers(t *testing.T, entries []TimeEntry) *Handlers {
 	store := NewStore("")
 	store.mu.Lock()
 	store.entries = entries
+	store.mu.Unlock()
+	return &Handlers{
+		store: store,
+		config: Config{
+			Timezone: "UTC",
+		},
+	}
+}
+
+// newTestHandlersLoaded creates a Handlers instance with entries and a
+// lastLoaded timestamp set, so that Version() returns a non-empty string
+// and ETag logic is active.
+func newTestHandlersLoaded(t *testing.T, entries []TimeEntry) *Handlers {
+	t.Helper()
+	store := NewStore("")
+	store.mu.Lock()
+	store.entries = entries
+	store.lastLoaded = time.Date(2026, 2, 19, 10, 0, 0, 0, time.UTC)
 	store.mu.Unlock()
 	return &Handlers{
 		store: store,
@@ -345,5 +364,115 @@ func TestCORSMiddleware_RejectsDisallowedPreflight(t *testing.T) {
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("expected 403 for disallowed OPTIONS, got %d", rr.Code)
+	}
+}
+
+func TestCORSMiddleware_AllowsIfNoneMatchHeader(t *testing.T) {
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	handler := corsMiddleware(inner, []string{"http://localhost:5173"})
+
+	req := httptest.NewRequest(http.MethodOptions, "/api/v1/projects", nil)
+	req.Header.Set("Origin", "http://localhost:5173")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	allowed := rr.Header().Get("Access-Control-Allow-Headers")
+	if allowed != "Content-Type, If-None-Match" {
+		t.Errorf("expected If-None-Match in allowed headers, got %q", allowed)
+	}
+}
+
+// --- ETag / conditional requests ---
+
+func TestProjects_ETagHeaderPresent(t *testing.T) {
+	h := newTestHandlersLoaded(t, []TimeEntry{makeEntry("2026-02-12", "A", 60)})
+	rr := get(t, h.Projects, "/api/v1/projects?from=2026-02-12&to=2026-02-12")
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	etag := rr.Header().Get("ETag")
+	if etag == "" {
+		t.Error("expected ETag header to be present")
+	}
+	lm := rr.Header().Get("Last-Modified")
+	if lm == "" {
+		t.Error("expected Last-Modified header to be present")
+	}
+}
+
+func TestProjects_304WhenETagMatches(t *testing.T) {
+	h := newTestHandlersLoaded(t, []TimeEntry{makeEntry("2026-02-12", "A", 60)})
+
+	// First request to get the ETag.
+	rr1 := get(t, h.Projects, "/api/v1/projects?from=2026-02-12&to=2026-02-12")
+	etag := rr1.Header().Get("ETag")
+	if etag == "" {
+		t.Fatal("first request should have ETag")
+	}
+
+	// Second request with If-None-Match.
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/projects?from=2026-02-12&to=2026-02-12", nil)
+	req.Header.Set("If-None-Match", etag)
+	rr2 := httptest.NewRecorder()
+	h.Projects(rr2, req)
+
+	if rr2.Code != http.StatusNotModified {
+		t.Errorf("expected 304, got %d body=%s", rr2.Code, rr2.Body)
+	}
+	if rr2.Body.Len() != 0 {
+		t.Errorf("expected empty body for 304, got %s", rr2.Body)
+	}
+}
+
+func TestProjects_200WhenETagMismatches(t *testing.T) {
+	h := newTestHandlersLoaded(t, []TimeEntry{makeEntry("2026-02-12", "A", 60)})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/projects?from=2026-02-12&to=2026-02-12", nil)
+	req.Header.Set("If-None-Match", `"stale-etag"`)
+	rr := httptest.NewRecorder()
+	h.Projects(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", rr.Code)
+	}
+}
+
+func TestHealth_304WhenETagMatches(t *testing.T) {
+	h := newTestHandlersLoaded(t, []TimeEntry{makeEntry("2026-02-12", "A", 30)})
+
+	rr1 := get(t, h.Health, "/health")
+	etag := rr1.Header().Get("ETag")
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	req.Header.Set("If-None-Match", etag)
+	rr2 := httptest.NewRecorder()
+	h.Health(rr2, req)
+
+	if rr2.Code != http.StatusNotModified {
+		t.Errorf("expected 304, got %d", rr2.Code)
+	}
+}
+
+func TestETag_NoETagWhenNeverLoaded(t *testing.T) {
+	// newTestHandlers does NOT set lastLoaded, so Version() returns "".
+	h := newTestHandlers(t, nil)
+	rr := get(t, h.Projects, "/api/v1/projects?from=2026-02-01&to=2026-02-28")
+	etag := rr.Header().Get("ETag")
+	if etag != "" {
+		t.Errorf("expected no ETag when store never loaded, got %q", etag)
+	}
+}
+
+func TestMetaVersion_PresentWhenLoaded(t *testing.T) {
+	h := newTestHandlersLoaded(t, []TimeEntry{makeEntry("2026-02-12", "A", 60)})
+	rr := get(t, h.Projects, "/api/v1/projects?from=2026-02-12&to=2026-02-12")
+	env := parseEnvelope(t, rr)
+	if env.Meta == nil {
+		t.Fatal("expected meta")
+	}
+	if env.Meta.Version == "" {
+		t.Error("expected meta.version to be present")
 	}
 }
