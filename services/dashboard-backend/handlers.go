@@ -73,8 +73,9 @@ func (h *Handlers) Health(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.writeData(w, http.StatusOK, map[string]any{
-		"status":  "ok",
-		"entries": h.store.Count(),
+		"status":        "ok",
+		"entries":       h.store.Count(),
+		"listenAddress": fmt.Sprintf("%s:%d", h.config.BindAddress, h.config.Port),
 	}, h.store.Count())
 }
 

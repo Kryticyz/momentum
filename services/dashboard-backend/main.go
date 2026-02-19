@@ -40,8 +40,8 @@ func main() {
 	mux := newMux(h, cfg)
 	handler := requestLogger(corsMiddleware(mux, cfg.CORSAllowedOrigins))
 
-	addr := fmt.Sprintf(":%d", cfg.Port)
-	log.Printf("Listening on http://localhost%s", addr)
+	addr := fmt.Sprintf("%s:%d", cfg.BindAddress, cfg.Port)
+	log.Printf("Listening on %s", addr)
 	log.Printf(
 		"JSONL=%q | Timezone=%s | Poll=%dh | ServeAPI=%t | ServeFrontend=%t | FrontendDir=%q",
 		cfg.JSONLPath,

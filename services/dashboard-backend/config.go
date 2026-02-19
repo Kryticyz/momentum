@@ -12,6 +12,7 @@ import (
 type Config struct {
 	JSONLPath          string   `json:"jsonl_path"`
 	Port               int      `json:"port"`
+	BindAddress        string   `json:"bind_address"`
 	Timezone           string   `json:"timezone"`
 	PollIntervalHours  int      `json:"poll_interval_hours"`
 	FrontendDir        string   `json:"frontend_dir"`
@@ -48,6 +49,7 @@ func loadConfig() Config {
 	configPath := flag.String("config", "config.json", "path to config JSON file")
 	jsonlFlag := flag.String("jsonl", "", "path to JSONL export file")
 	portFlag := flag.Int("port", 0, "HTTP port")
+	bindFlag := flag.String("bind", "", "bind address (e.g. 0.0.0.0, 127.0.0.1)")
 	tzFlag := flag.String("tz", "", "timezone (e.g. Australia/Sydney)")
 	pollFlag := flag.Int("poll", -1, "poll interval in hours (0 disables poller)")
 	frontendFlag := flag.String("frontend", "", "path to frontend dist directory")
@@ -74,6 +76,9 @@ func loadConfig() Config {
 	}
 	if *portFlag != 0 {
 		cfg.Port = *portFlag
+	}
+	if *bindFlag != "" {
+		cfg.BindAddress = *bindFlag
 	}
 	if *tzFlag != "" {
 		cfg.Timezone = *tzFlag
