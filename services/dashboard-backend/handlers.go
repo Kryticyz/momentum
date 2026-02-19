@@ -58,7 +58,12 @@ func (h *Handlers) dataHandler(transform func(entries []TimeEntry, from, to stri
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": errMsg})
 			return
 		}
-		entries := filterByRange(h.store.Entries(), from, to)
+		entries, err := h.store.EntriesInRange(from, to)
+		if err != nil {
+			log.Printf("EntriesInRange: %v", err)
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to query entries"})
+			return
+		}
 		data, count := transform(entries, from, to)
 		h.writeData(w, http.StatusOK, data, count)
 	}

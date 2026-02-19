@@ -63,15 +63,39 @@ func (s *Store) Reload() error {
 	return nil
 }
 
-// Entries returns the current entries slice. The returned slice must not be
-// mutated — it is shared across all concurrent readers.
-func (s *Store) Entries() []TimeEntry {
-	return s.snap.Load().entries
+// EntriesInRange returns entries whose Date falls within [from, to] inclusive.
+// For the in-memory store this filters the snapshot; for PostgreSQL this would
+// become a WHERE clause.
+func (s *Store) EntriesInRange(from, to string) ([]TimeEntry, error) {
+	return filterByRange(s.snap.Load().entries, from, to), nil
 }
 
 // Count returns the current number of loaded entries.
 func (s *Store) Count() int {
 	return len(s.snap.Load().entries)
+}
+
+// AddEntries appends entries to the current snapshot atomically. This enables
+// ingestion via push API or file import without a full reload.
+func (s *Store) AddEntries(entries []TimeEntry) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	current := s.snap.Load()
+	merged := make([]TimeEntry, len(current.entries), len(current.entries)+len(entries))
+	copy(merged, current.entries)
+	merged = append(merged, entries...)
+
+	s.snap.Store(&storeSnapshot{
+		entries:    merged,
+		lastLoaded: time.Now(),
+	})
+	return nil
+}
+
+// Close releases resources. The in-memory store has nothing to close.
+func (s *Store) Close() error {
+	return nil
 }
 
 // LastLoaded returns the time of the most recent successful load.
