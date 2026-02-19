@@ -62,40 +62,101 @@ type TimeEntry struct {
 
 `from` and `to` default to last 30 days in configured timezone if omitted.
 
+## Response Envelope
+
+All successful responses use a standard envelope:
+
+```json
+{
+  "data": <payload>,
+  "meta": {
+    "count": 2,
+    "lastLoaded": "2026-02-19T10:00:00+11:00"
+  }
+}
+```
+
+- `data`: The response payload (array for data endpoints, object for health/refresh).
+- `meta.count`: Number of items in the data payload.
+- `meta.lastLoaded`: RFC 3339 timestamp of the most recent data reload.
+
+All error responses are JSON with at minimum an `"error"` field:
+
+```json
+{ "error": "descriptive error message" }
+```
+
+Error responses do not use the envelope — they are bare objects.
+
 ## Response Shapes
+
+### `/health`
+
+```json
+{
+  "data": {
+    "status": "ok",
+    "entries": 142
+  },
+  "meta": { "count": 142, "lastLoaded": "2026-02-19T10:00:00+11:00" }
+}
+```
+
+### `/refresh`
+
+```json
+{
+  "data": {
+    "ok": true,
+    "entries": 142
+  },
+  "meta": { "count": 142, "lastLoaded": "2026-02-19T10:00:00+11:00" }
+}
+```
 
 ### `/api/v1/projects`
 
 ```json
-[
-  {
-    "project": "Project A",
-    "minutes": 320,
-    "hours": 5.33
-  }
-]
+{
+  "data": [
+    {
+      "project": "Project A",
+      "minutes": 320,
+      "hours": 5.33
+    }
+  ],
+  "meta": { "count": 1, "lastLoaded": "2026-02-19T10:00:00+11:00" }
+}
 ```
 
 ### `/api/v1/days`
 
 ```json
-[
-  {
-    "date": "2026-02-12",
-    "minutes": 180
-  }
-]
+{
+  "data": [
+    {
+      "date": "2026-02-12",
+      "minutes": 180,
+      "hours": 3.0
+    }
+  ],
+  "meta": { "count": 1, "lastLoaded": "2026-02-19T10:00:00+11:00" }
+}
 ```
 
 ### `/api/v1/weeks`
 
 ```json
-[
-  {
-    "weekStart": "2026-02-08",
-    "minutes": 640
-  }
-]
+{
+  "data": [
+    {
+      "weekStart": "2026-02-08",
+      "minutes": 640,
+      "hours": 10.67
+    }
+  ],
+  "meta": { "count": 1, "lastLoaded": "2026-02-19T10:00:00+11:00" }
+}
 ```
 
 ### `/api/v1/planned-vs-actual`
@@ -111,3 +172,4 @@ Current response:
 - CORS is allow-list based (`cors_allowed_origins`), with `["*"]` as wildcard option.
 - Server supports API-only, frontend-only, or combined mode (`serve_api`, `serve_frontend`).
 - Frontend SPA fallback serves `index.html` for client routes, but not for missing static assets.
+- All requests are logged with method, path, status code, duration, and User-Agent.

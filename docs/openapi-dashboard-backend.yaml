@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Momentum Dashboard Backend API
-  version: 1.0.0
+  version: 1.1.0
   description: API contract for the local momentum dashboard backend.
 servers:
   - url: http://localhost:8080
@@ -21,7 +21,18 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HealthResponse'
+                allOf:
+                  - $ref: '#/components/schemas/APIEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/HealthData'
+        '405':
+          description: Method not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /refresh:
     post:
       tags: [Refresh]
@@ -32,7 +43,18 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RefreshResponse'
+                allOf:
+                  - $ref: '#/components/schemas/APIEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/RefreshData'
+        '405':
+          description: Method not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Refresh failed
           content:
@@ -52,11 +74,22 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/TimeEntry'
+                allOf:
+                  - $ref: '#/components/schemas/APIEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/TimeEntry'
         '400':
           description: Invalid date range
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed
           content:
             application/json:
               schema:
@@ -74,11 +107,22 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ProjectStat'
+                allOf:
+                  - $ref: '#/components/schemas/APIEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ProjectStat'
         '400':
           description: Invalid date range
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed
           content:
             application/json:
               schema:
@@ -96,11 +140,22 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/DayStat'
+                allOf:
+                  - $ref: '#/components/schemas/APIEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/DayStat'
         '400':
           description: Invalid date range
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed
           content:
             application/json:
               schema:
@@ -118,11 +173,22 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/WeekStat'
+                allOf:
+                  - $ref: '#/components/schemas/APIEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/WeekStat'
         '400':
           description: Invalid date range
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed
           content:
             application/json:
               schema:
@@ -160,9 +226,29 @@ components:
         pattern: '^\d{4}-\d{2}-\d{2}$'
       description: End date in YYYY-MM-DD format.
   schemas:
-    HealthResponse:
+    ResponseMeta:
       type: object
-      required: [status, entries, lastLoaded]
+      required: [count, lastLoaded]
+      properties:
+        count:
+          type: integer
+          description: Number of items in the data payload.
+          example: 142
+        lastLoaded:
+          type: string
+          description: RFC 3339 timestamp of most recent data reload, or empty string when never loaded.
+          example: '2026-02-19T10:00:00+11:00'
+    APIEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data: {}
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+      description: Standard response envelope. All successful responses use this shape.
+    HealthData:
+      type: object
+      required: [status, entries]
       properties:
         status:
           type: string
@@ -170,11 +256,7 @@ components:
         entries:
           type: integer
           example: 142
-        lastLoaded:
-          type: string
-          description: RFC3339 timestamp, or empty string when never loaded.
-          example: '2026-02-17T19:52:49+11:00'
-    RefreshResponse:
+    RefreshData:
       type: object
       required: [ok, entries]
       properties:

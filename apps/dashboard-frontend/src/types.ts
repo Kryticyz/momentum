@@ -20,3 +20,13 @@ export interface DateRange {
   from: string;
   to: string;
 }
+
+export interface ResponseMeta {
+  count: number;
+  lastLoaded: string;
+}
+
+export interface ApiResponse<T> {
+  data: T;
+  meta: ResponseMeta | null;
+}

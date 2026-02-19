@@ -11,10 +11,34 @@ import (
 
 var isoDateRe = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 
+// APIResponse is the standard envelope for all successful responses.
+type APIResponse struct {
+	Data any           `json:"data"`
+	Meta *ResponseMeta `json:"meta,omitempty"`
+}
+
+// ResponseMeta provides metadata about the response data.
+type ResponseMeta struct {
+	Count      int    `json:"count"`
+	LastLoaded string `json:"lastLoaded"`
+}
+
 // Handlers holds the shared dependencies for all HTTP handlers.
 type Handlers struct {
 	store  EntryStore
 	config Config
+}
+
+// writeData writes a standard envelope response with data and metadata.
+func (h *Handlers) writeData(w http.ResponseWriter, status int, data any, count int) {
+	lastLoaded := ""
+	if ts := h.store.LastLoaded(); !ts.IsZero() {
+		lastLoaded = ts.Format(time.RFC3339)
+	}
+	writeJSON(w, status, APIResponse{
+		Data: data,
+		Meta: &ResponseMeta{Count: count, LastLoaded: lastLoaded},
+	})
 }
 
 // Health handles GET /health.
@@ -22,15 +46,10 @@ func (h *Handlers) Health(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
-	lastLoaded := ""
-	if ts := h.store.LastLoaded(); !ts.IsZero() {
-		lastLoaded = ts.Format(time.RFC3339)
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"status":     "ok",
-		"entries":    h.store.Count(),
-		"lastLoaded": lastLoaded,
-	})
+	h.writeData(w, http.StatusOK, map[string]any{
+		"status":  "ok",
+		"entries": h.store.Count(),
+	}, h.store.Count())
 }
 
 // Refresh handles POST /refresh — reloads the JSONL file immediately.
@@ -40,15 +59,15 @@ func (h *Handlers) Refresh(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := h.store.Reload(); err != nil {
 		log.Printf("Refresh: %v", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]any{
+		writeJSON(w, http.StatusInternalServerError, map[string]string{
 			"error": err.Error(),
 		})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
+	h.writeData(w, http.StatusOK, map[string]any{
 		"ok":      true,
 		"entries": h.store.Count(),
-	})
+	}, h.store.Count())
 }
 
 // Entries handles GET /api/v1/entries — returns raw filtered entries.
@@ -65,7 +84,7 @@ func (h *Handlers) Entries(w http.ResponseWriter, r *http.Request) {
 	if entries == nil {
 		entries = []TimeEntry{}
 	}
-	writeJSON(w, http.StatusOK, entries)
+	h.writeData(w, http.StatusOK, entries, len(entries))
 }
 
 // Projects handles GET /api/v1/projects.
@@ -83,7 +102,7 @@ func (h *Handlers) Projects(w http.ResponseWriter, r *http.Request) {
 	if stats == nil {
 		stats = []ProjectStat{}
 	}
-	writeJSON(w, http.StatusOK, stats)
+	h.writeData(w, http.StatusOK, stats, len(stats))
 }
 
 // Days handles GET /api/v1/days.
@@ -101,7 +120,7 @@ func (h *Handlers) Days(w http.ResponseWriter, r *http.Request) {
 	if stats == nil {
 		stats = []DayStat{}
 	}
-	writeJSON(w, http.StatusOK, stats)
+	h.writeData(w, http.StatusOK, stats, len(stats))
 }
 
 // Weeks handles GET /api/v1/weeks.
@@ -119,7 +138,7 @@ func (h *Handlers) Weeks(w http.ResponseWriter, r *http.Request) {
 	if stats == nil {
 		stats = []WeekStat{}
 	}
-	writeJSON(w, http.StatusOK, stats)
+	h.writeData(w, http.StatusOK, stats, len(stats))
 }
 
 // PlannedVsActual handles GET /api/v1/planned-vs-actual — stub, returns 501.
@@ -175,7 +194,9 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 func requireMethod(w http.ResponseWriter, r *http.Request, method string) bool {
 	if r.Method != method {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{
+			"error": "method not allowed",
+		})
 		return false
 	}
 	return true

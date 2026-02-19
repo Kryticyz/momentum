@@ -38,7 +38,7 @@ func main() {
 
 	h := &Handlers{store: store, config: cfg}
 	mux := newMux(h, cfg)
-	handler := corsMiddleware(mux, cfg.CORSAllowedOrigins)
+	handler := requestLogger(corsMiddleware(mux, cfg.CORSAllowedOrigins))
 
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	log.Printf("Listening on http://localhost%s", addr)

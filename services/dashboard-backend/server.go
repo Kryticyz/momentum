@@ -1,11 +1,13 @@
 package main
 
 import (
+	"log"
 	"net/http"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const apiV1Prefix = "/api/v1"
@@ -86,6 +88,29 @@ func newMux(h *Handlers, cfg Config) http.Handler {
 	}
 
 	return mux
+}
+
+// requestLogger wraps a handler to log each request with method, path, status,
+// duration, and User-Agent.
+func requestLogger(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(sw, r)
+		log.Printf("%s %s %d %s ua=%q",
+			r.Method, r.URL.Path, sw.status, time.Since(start), r.UserAgent())
+	})
+}
+
+// statusWriter wraps http.ResponseWriter to capture the status code.
+type statusWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (w *statusWriter) WriteHeader(code int) {
+	w.status = code
+	w.ResponseWriter.WriteHeader(code)
 }
 
 func apiNotFound(w http.ResponseWriter, r *http.Request) {

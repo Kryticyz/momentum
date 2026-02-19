@@ -16,7 +16,7 @@ describe("api client", () => {
   it("uses versioned endpoint for projects", async () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockResolvedValueOnce(
-      new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } })
+      new Response(JSON.stringify({ data: [], meta: null }), { status: 200, headers: { "Content-Type": "application/json" } })
     );
 
     await fetchProjects(range);
@@ -30,10 +30,10 @@ describe("api client", () => {
   it("uses versioned endpoints for days and weeks", async () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockResolvedValueOnce(
-      new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } })
+      new Response(JSON.stringify({ data: [], meta: null }), { status: 200, headers: { "Content-Type": "application/json" } })
     );
     fetchMock.mockResolvedValueOnce(
-      new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } })
+      new Response(JSON.stringify({ data: [], meta: null }), { status: 200, headers: { "Content-Type": "application/json" } })
     );
 
     await fetchDays(range);
@@ -54,7 +54,7 @@ describe("api client", () => {
   it("passes abort signal to fetch when provided", async () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockResolvedValueOnce(
-      new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } })
+      new Response(JSON.stringify({ data: [], meta: null }), { status: 200, headers: { "Content-Type": "application/json" } })
     );
 
     const controller = new AbortController();

@@ -1,4 +1,4 @@
-import type { DateRange, DayStat, ProjectStat, WeekStat } from "./types";
+import type { ApiResponse, DateRange, DayStat, ProjectStat, WeekStat } from "./types";
 
 const BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "";
 const API_PREFIX = "/api/v1";
@@ -9,7 +9,8 @@ async function fetchJSON<T>(path: string, signal?: AbortSignal): Promise<T> {
     const text = await res.text();
     throw new Error(`${res.status} ${res.statusText}: ${text}`);
   }
-  return res.json() as Promise<T>;
+  const envelope = (await res.json()) as ApiResponse<T>;
+  return envelope.data;
 }
 
 function rangeParams(range: DateRange): string {

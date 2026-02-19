@@ -32,6 +32,32 @@ func get(t *testing.T, h http.HandlerFunc, url string) *httptest.ResponseRecorde
 	return rr
 }
 
+// parseEnvelope unmarshals a response body into the standard APIResponse envelope.
+func parseEnvelope(t *testing.T, rr *httptest.ResponseRecorder) APIResponse {
+	t.Helper()
+	var env APIResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &env); err != nil {
+		t.Fatalf("failed to parse envelope: %v body=%s", err, rr.Body)
+	}
+	return env
+}
+
+// envelopeData extracts the "data" field from the envelope and unmarshals it
+// into the target type.
+func envelopeData[T any](t *testing.T, rr *httptest.ResponseRecorder) T {
+	t.Helper()
+	env := parseEnvelope(t, rr)
+	raw, err := json.Marshal(env.Data)
+	if err != nil {
+		t.Fatalf("failed to re-marshal data: %v", err)
+	}
+	var result T
+	if err := json.Unmarshal(raw, &result); err != nil {
+		t.Fatalf("failed to unmarshal data into %T: %v", result, err)
+	}
+	return result
+}
+
 // --- /health ---
 
 func TestHealth_ReturnsOK(t *testing.T) {
@@ -40,15 +66,24 @@ func TestHealth_ReturnsOK(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", rr.Code)
 	}
-	var body map[string]any
-	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
-		t.Fatal(err)
+	data := envelopeData[map[string]any](t, rr)
+	if data["status"] != "ok" {
+		t.Errorf("expected status=ok, got %v", data["status"])
 	}
-	if body["status"] != "ok" {
-		t.Errorf("expected status=ok, got %v", body["status"])
+	if count, ok := data["entries"].(float64); !ok || count != 1 {
+		t.Errorf("expected entries=1, got %v", data["entries"])
 	}
-	if count, ok := body["entries"].(float64); !ok || count != 1 {
-		t.Errorf("expected entries=1, got %v", body["entries"])
+}
+
+func TestHealth_EnvelopeMeta(t *testing.T) {
+	h := newTestHandlers(t, []TimeEntry{makeEntry("2026-02-12", "A", 30)})
+	rr := get(t, h.Health, "/health")
+	env := parseEnvelope(t, rr)
+	if env.Meta == nil {
+		t.Fatal("expected meta to be present")
+	}
+	if env.Meta.Count != 1 {
+		t.Errorf("expected meta.count=1, got %d", env.Meta.Count)
 	}
 }
 
@@ -59,6 +94,18 @@ func TestHealth_MethodNotAllowed(t *testing.T) {
 	h.Health(rr, req)
 	if rr.Code != http.StatusMethodNotAllowed {
 		t.Errorf("expected 405, got %d", rr.Code)
+	}
+	// Verify error is JSON, not plain text.
+	ct := rr.Header().Get("Content-Type")
+	if ct != "application/json" {
+		t.Errorf("expected Content-Type application/json, got %s", ct)
+	}
+	var body map[string]string
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatalf("expected JSON error body: %v", err)
+	}
+	if body["error"] != "method not allowed" {
+		t.Errorf("expected error='method not allowed', got %q", body["error"])
 	}
 }
 
@@ -74,10 +121,7 @@ func TestProjects_ReturnsAggregated(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d body=%s", rr.Code, rr.Body)
 	}
-	var stats []ProjectStat
-	if err := json.Unmarshal(rr.Body.Bytes(), &stats); err != nil {
-		t.Fatal(err)
-	}
+	stats := envelopeData[[]ProjectStat](t, rr)
 	if len(stats) != 2 {
 		t.Fatalf("expected 2 projects, got %d", len(stats))
 	}
@@ -96,10 +140,21 @@ func TestProjects_EmptyRange(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rr.Code)
 	}
-	var stats []ProjectStat
-	_ = json.Unmarshal(rr.Body.Bytes(), &stats)
+	stats := envelopeData[[]ProjectStat](t, rr)
 	if len(stats) != 0 {
 		t.Errorf("expected empty, got %+v", stats)
+	}
+}
+
+func TestProjects_EmptyRangeMetaCount(t *testing.T) {
+	h := newTestHandlers(t, []TimeEntry{makeEntry("2026-02-12", "A", 60)})
+	rr := get(t, h.Projects, "/api/v1/projects?from=2026-03-01&to=2026-03-31")
+	env := parseEnvelope(t, rr)
+	if env.Meta == nil {
+		t.Fatal("expected meta")
+	}
+	if env.Meta.Count != 0 {
+		t.Errorf("expected meta.count=0, got %d", env.Meta.Count)
 	}
 }
 
@@ -130,8 +185,7 @@ func TestDays_ZeroFilled(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d body=%s", rr.Code, rr.Body)
 	}
-	var stats []DayStat
-	_ = json.Unmarshal(rr.Body.Bytes(), &stats)
+	stats := envelopeData[[]DayStat](t, rr)
 	if len(stats) != 3 {
 		t.Fatalf("expected 3 day entries (zero-filled), got %d", len(stats))
 	}
@@ -160,8 +214,7 @@ func TestWeeks_SortedAscending(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d body=%s", rr.Code, rr.Body)
 	}
-	var stats []WeekStat
-	_ = json.Unmarshal(rr.Body.Bytes(), &stats)
+	stats := envelopeData[[]WeekStat](t, rr)
 	if len(stats) < 2 {
 		t.Fatalf("expected at least 2 weeks, got %d", len(stats))
 	}
@@ -181,8 +234,7 @@ func TestEntries_ReturnsRawEntries(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rr.Code)
 	}
-	var entries []TimeEntry
-	_ = json.Unmarshal(rr.Body.Bytes(), &entries)
+	entries := envelopeData[[]TimeEntry](t, rr)
 	if len(entries) != 2 {
 		t.Errorf("expected 2 entries, got %d", len(entries))
 	}
@@ -225,10 +277,9 @@ func TestRefresh_ReloadsStore(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d body=%s", rr.Code, rr.Body)
 	}
-	var body map[string]any
-	_ = json.Unmarshal(rr.Body.Bytes(), &body)
-	if count, _ := body["entries"].(float64); count != 1 {
-		t.Errorf("expected entries=1, got %v", body["entries"])
+	data := envelopeData[map[string]any](t, rr)
+	if count, _ := data["entries"].(float64); count != 1 {
+		t.Errorf("expected entries=1, got %v", data["entries"])
 	}
 }
 
@@ -239,6 +290,11 @@ func TestRefresh_MethodNotAllowed(t *testing.T) {
 	h.Refresh(rr, req)
 	if rr.Code != http.StatusMethodNotAllowed {
 		t.Errorf("expected 405, got %d", rr.Code)
+	}
+	// Verify JSON error response.
+	ct := rr.Header().Get("Content-Type")
+	if ct != "application/json" {
+		t.Errorf("expected Content-Type application/json, got %s", ct)
 	}
 }
 
