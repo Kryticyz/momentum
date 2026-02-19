@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: Momentum Dashboard Backend API
-  version: 1.2.0
-  description: API contract for the local momentum dashboard backend.
+  version: 2.0.0
+  description: API contract for the momentum dashboard backend.
 servers:
   - url: http://localhost:8080
 tags:
@@ -15,16 +15,9 @@ paths:
     get:
       tags: [Health]
       summary: Service health and store metadata
-      parameters:
-        - $ref: '#/components/parameters/IfNoneMatch'
       responses:
         '200':
           description: OK
-          headers:
-            ETag:
-              $ref: '#/components/headers/ETag'
-            Last-Modified:
-              $ref: '#/components/headers/LastModified'
           content:
             application/json:
               schema:
@@ -34,8 +27,6 @@ paths:
                     properties:
                       data:
                         $ref: '#/components/schemas/HealthData'
-        '304':
-          description: Not modified (ETag matched)
         '405':
           description: Method not allowed
           content:
@@ -77,15 +68,9 @@ paths:
       parameters:
         - $ref: '#/components/parameters/From'
         - $ref: '#/components/parameters/To'
-        - $ref: '#/components/parameters/IfNoneMatch'
       responses:
         '200':
           description: Raw entries
-          headers:
-            ETag:
-              $ref: '#/components/headers/ETag'
-            Last-Modified:
-              $ref: '#/components/headers/LastModified'
           content:
             application/json:
               schema:
@@ -97,8 +82,6 @@ paths:
                         type: array
                         items:
                           $ref: '#/components/schemas/TimeEntry'
-        '304':
-          description: Not modified (ETag matched)
         '400':
           description: Invalid date range
           content:
@@ -118,15 +101,9 @@ paths:
       parameters:
         - $ref: '#/components/parameters/From'
         - $ref: '#/components/parameters/To'
-        - $ref: '#/components/parameters/IfNoneMatch'
       responses:
         '200':
           description: Project aggregates
-          headers:
-            ETag:
-              $ref: '#/components/headers/ETag'
-            Last-Modified:
-              $ref: '#/components/headers/LastModified'
           content:
             application/json:
               schema:
@@ -138,8 +115,6 @@ paths:
                         type: array
                         items:
                           $ref: '#/components/schemas/ProjectStat'
-        '304':
-          description: Not modified (ETag matched)
         '400':
           description: Invalid date range
           content:
@@ -159,15 +134,9 @@ paths:
       parameters:
         - $ref: '#/components/parameters/From'
         - $ref: '#/components/parameters/To'
-        - $ref: '#/components/parameters/IfNoneMatch'
       responses:
         '200':
           description: Daily aggregates
-          headers:
-            ETag:
-              $ref: '#/components/headers/ETag'
-            Last-Modified:
-              $ref: '#/components/headers/LastModified'
           content:
             application/json:
               schema:
@@ -179,8 +148,6 @@ paths:
                         type: array
                         items:
                           $ref: '#/components/schemas/DayStat'
-        '304':
-          description: Not modified (ETag matched)
         '400':
           description: Invalid date range
           content:
@@ -200,15 +167,9 @@ paths:
       parameters:
         - $ref: '#/components/parameters/From'
         - $ref: '#/components/parameters/To'
-        - $ref: '#/components/parameters/IfNoneMatch'
       responses:
         '200':
           description: Weekly aggregates
-          headers:
-            ETag:
-              $ref: '#/components/headers/ETag'
-            Last-Modified:
-              $ref: '#/components/headers/LastModified'
           content:
             application/json:
               schema:
@@ -220,8 +181,6 @@ paths:
                         type: array
                         items:
                           $ref: '#/components/schemas/WeekStat'
-        '304':
-          description: Not modified (ETag matched)
         '400':
           description: Invalid date range
           content:
@@ -266,22 +225,6 @@ components:
         type: string
         pattern: '^\d{4}-\d{2}-\d{2}$'
       description: End date in YYYY-MM-DD format.
-    IfNoneMatch:
-      name: If-None-Match
-      in: header
-      required: false
-      schema:
-        type: string
-      description: ETag from a previous response. If it matches the current data version, the server returns 304.
-  headers:
-    ETag:
-      description: Opaque identifier for the current data version. Send back as If-None-Match for conditional requests.
-      schema:
-        type: string
-    LastModified:
-      description: Timestamp of the most recent data reload.
-      schema:
-        type: string
   schemas:
     ResponseMeta:
       type: object
@@ -295,10 +238,6 @@ components:
           type: string
           description: RFC 3339 timestamp of most recent data reload, or empty string when never loaded.
           example: '2026-02-19T10:00:00+11:00'
-        version:
-          type: string
-          description: Opaque string that changes when data changes. Compare across responses to detect changes.
-          example: '16e4a2b3c5d00'
     APIEnvelope:
       type: object
       required: [data]

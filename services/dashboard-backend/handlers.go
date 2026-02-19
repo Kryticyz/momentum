@@ -21,7 +21,6 @@ type APIResponse struct {
 type ResponseMeta struct {
 	Count      int    `json:"count"`
 	LastLoaded string `json:"lastLoaded"`
-	Version    string `json:"version,omitempty"`
 }
 
 // Handlers holds the shared dependencies for all HTTP handlers.
@@ -41,41 +40,17 @@ func (h *Handlers) writeData(w http.ResponseWriter, status int, data any, count 
 		Meta: &ResponseMeta{
 			Count:      count,
 			LastLoaded: lastLoaded,
-			Version:    h.store.Version(),
 		},
 	})
 }
 
-// checkNotModified sets ETag and Last-Modified headers and returns true (with
-// a 304 response) if the client's If-None-Match header matches the current
-// store version. Callers should return early when true.
-func (h *Handlers) checkNotModified(w http.ResponseWriter, r *http.Request) bool {
-	v := h.store.Version()
-	if v == "" {
-		return false
-	}
-	etag := `"` + v + `"`
-	w.Header().Set("ETag", etag)
-	w.Header().Set("Last-Modified", h.store.LastLoaded().UTC().Format(http.TimeFormat))
-	if r.Header.Get("If-None-Match") == etag {
-		w.WriteHeader(http.StatusNotModified)
-		return true
-	}
-	return false
-}
-
-// dataHandler builds a GET handler that checks the method, checks ETag,
-// parses the date range, filters entries, and applies a transform function
-// to produce the response data. This eliminates the repeated boilerplate
-// across Entries, Projects, Days, and Weeks.
+// dataHandler builds a GET handler that checks the method, parses the date
+// range, filters entries, and applies a transform function to produce the
+// response data. This eliminates the repeated boilerplate across Entries,
+// Projects, Days, and Weeks.
 func (h *Handlers) dataHandler(transform func(entries []TimeEntry, from, to string) (any, int)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(w, r, http.MethodGet) {
-			return
-		}
-		// ETag is store-global, not query-specific — if the store hasn't
-		// reloaded, no query's results could have changed.
-		if h.checkNotModified(w, r) {
 			return
 		}
 		from, to, errMsg := h.parseDateRange(r)
@@ -127,9 +102,6 @@ func weeksTransform(entries []TimeEntry, _, _ string) (any, int) {
 // Health handles GET /health.
 func (h *Handlers) Health(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
-		return
-	}
-	if h.checkNotModified(w, r) {
 		return
 	}
 	h.writeData(w, http.StatusOK, map[string]any{

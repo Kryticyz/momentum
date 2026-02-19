@@ -15,10 +15,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: never;
-                header?: {
-                    /** @description ETag from a previous response. If it matches the current data version, the server returns 304. */
-                    "If-None-Match"?: components["parameters"]["IfNoneMatch"];
-                };
+                header?: never;
                 path?: never;
                 cookie?: never;
             };
@@ -27,8 +24,6 @@ export interface paths {
                 /** @description OK */
                 200: {
                     headers: {
-                        ETag: components["headers"]["ETag"];
-                        "Last-Modified": components["headers"]["LastModified"];
                         [name: string]: unknown;
                     };
                     content: {
@@ -36,13 +31,6 @@ export interface paths {
                             data?: components["schemas"]["HealthData"];
                         };
                     };
-                };
-                /** @description Not modified (ETag matched) */
-                304: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
                 };
                 /** @description Method not allowed */
                 405: {
@@ -135,10 +123,7 @@ export interface paths {
                     /** @description End date in YYYY-MM-DD format. */
                     to?: components["parameters"]["To"];
                 };
-                header?: {
-                    /** @description ETag from a previous response. If it matches the current data version, the server returns 304. */
-                    "If-None-Match"?: components["parameters"]["IfNoneMatch"];
-                };
+                header?: never;
                 path?: never;
                 cookie?: never;
             };
@@ -147,8 +132,6 @@ export interface paths {
                 /** @description Raw entries */
                 200: {
                     headers: {
-                        ETag: components["headers"]["ETag"];
-                        "Last-Modified": components["headers"]["LastModified"];
                         [name: string]: unknown;
                     };
                     content: {
@@ -156,13 +139,6 @@ export interface paths {
                             data?: components["schemas"]["TimeEntry"][];
                         };
                     };
-                };
-                /** @description Not modified (ETag matched) */
-                304: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
                 };
                 /** @description Invalid date range */
                 400: {
@@ -208,10 +184,7 @@ export interface paths {
                     /** @description End date in YYYY-MM-DD format. */
                     to?: components["parameters"]["To"];
                 };
-                header?: {
-                    /** @description ETag from a previous response. If it matches the current data version, the server returns 304. */
-                    "If-None-Match"?: components["parameters"]["IfNoneMatch"];
-                };
+                header?: never;
                 path?: never;
                 cookie?: never;
             };
@@ -220,8 +193,6 @@ export interface paths {
                 /** @description Project aggregates */
                 200: {
                     headers: {
-                        ETag: components["headers"]["ETag"];
-                        "Last-Modified": components["headers"]["LastModified"];
                         [name: string]: unknown;
                     };
                     content: {
@@ -229,13 +200,6 @@ export interface paths {
                             data?: components["schemas"]["ProjectStat"][];
                         };
                     };
-                };
-                /** @description Not modified (ETag matched) */
-                304: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
                 };
                 /** @description Invalid date range */
                 400: {
@@ -281,10 +245,7 @@ export interface paths {
                     /** @description End date in YYYY-MM-DD format. */
                     to?: components["parameters"]["To"];
                 };
-                header?: {
-                    /** @description ETag from a previous response. If it matches the current data version, the server returns 304. */
-                    "If-None-Match"?: components["parameters"]["IfNoneMatch"];
-                };
+                header?: never;
                 path?: never;
                 cookie?: never;
             };
@@ -293,8 +254,6 @@ export interface paths {
                 /** @description Daily aggregates */
                 200: {
                     headers: {
-                        ETag: components["headers"]["ETag"];
-                        "Last-Modified": components["headers"]["LastModified"];
                         [name: string]: unknown;
                     };
                     content: {
@@ -302,13 +261,6 @@ export interface paths {
                             data?: components["schemas"]["DayStat"][];
                         };
                     };
-                };
-                /** @description Not modified (ETag matched) */
-                304: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
                 };
                 /** @description Invalid date range */
                 400: {
@@ -354,10 +306,7 @@ export interface paths {
                     /** @description End date in YYYY-MM-DD format. */
                     to?: components["parameters"]["To"];
                 };
-                header?: {
-                    /** @description ETag from a previous response. If it matches the current data version, the server returns 304. */
-                    "If-None-Match"?: components["parameters"]["IfNoneMatch"];
-                };
+                header?: never;
                 path?: never;
                 cookie?: never;
             };
@@ -366,8 +315,6 @@ export interface paths {
                 /** @description Weekly aggregates */
                 200: {
                     headers: {
-                        ETag: components["headers"]["ETag"];
-                        "Last-Modified": components["headers"]["LastModified"];
                         [name: string]: unknown;
                     };
                     content: {
@@ -375,13 +322,6 @@ export interface paths {
                             data?: components["schemas"]["WeekStat"][];
                         };
                     };
-                };
-                /** @description Not modified (ETag matched) */
-                304: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
                 };
                 /** @description Invalid date range */
                 400: {
@@ -467,11 +407,6 @@ export interface components {
              * @example 2026-02-19T10:00:00+11:00
              */
             lastLoaded: string;
-            /**
-             * @description Opaque string that changes when data changes. Compare across responses to detect changes.
-             * @example 16e4a2b3c5d00
-             */
-            version?: string;
         };
         /** @description Standard response envelope. All successful responses use this shape. */
         APIEnvelope: {
@@ -553,16 +488,9 @@ export interface components {
         From: string;
         /** @description End date in YYYY-MM-DD format. */
         To: string;
-        /** @description ETag from a previous response. If it matches the current data version, the server returns 304. */
-        IfNoneMatch: string;
     };
     requestBodies: never;
-    headers: {
-        /** @description Opaque identifier for the current data version. Send back as If-None-Match for conditional requests. */
-        ETag: string;
-        /** @description Timestamp of the most recent data reload. */
-        LastModified: string;
-    };
+    headers: never;
     pathItems: never;
 }
 export type $defs = Record<string, never>;

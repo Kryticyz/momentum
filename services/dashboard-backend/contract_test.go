@@ -63,7 +63,7 @@ func TestContract_EnvelopeShape(t *testing.T) {
 			if err := json.Unmarshal(metaRaw, &meta); err != nil {
 				t.Fatalf("meta is not a JSON object: %v", err)
 			}
-			for _, required := range []string{"count", "lastLoaded", "version"} {
+			for _, required := range []string{"count", "lastLoaded"} {
 				if _, ok := meta[required]; !ok {
 					t.Errorf("missing required meta field %q", required)
 				}

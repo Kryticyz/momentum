@@ -42,7 +42,7 @@ func corsMiddleware(next http.Handler, allowedOrigins []string) http.Handler {
 				return
 			}
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, If-None-Match")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}

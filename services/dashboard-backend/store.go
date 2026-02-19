@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"sync"
 	"sync/atomic"
@@ -78,16 +77,6 @@ func (s *Store) Count() int {
 // LastLoaded returns the time of the most recent successful load.
 func (s *Store) LastLoaded() time.Time {
 	return s.snap.Load().lastLoaded
-}
-
-// Version returns an opaque string that changes whenever the store data changes.
-// Used for ETag generation and change detection.
-func (s *Store) Version() string {
-	snap := s.snap.Load()
-	if snap.lastLoaded.IsZero() {
-		return ""
-	}
-	return fmt.Sprintf("%x", snap.lastLoaded.UnixNano())
 }
 
 // StartPoller launches a background goroutine that reloads the JSONL file

@@ -8,5 +8,4 @@ type EntryStore interface {
 	Count() int
 	LastLoaded() time.Time
 	Reload() error
-	Version() string // opaque; changes when data changes
 }

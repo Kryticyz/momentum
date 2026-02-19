@@ -46,14 +46,20 @@ type EntryStore interface {
     Count() int
     LastLoaded() time.Time
     Reload() error
-    Version() string
 }
 ```
 
-When PostgreSQL is introduced, the interface gains:
+When PostgreSQL is introduced, the interface evolves to:
 
 ```go
-EntriesInRange(from, to string) ([]TimeEntry, error)
+type EntryStore interface {
+    EntriesInRange(from, to string) ([]TimeEntry, error)
+    Count() int
+    LastLoaded() time.Time
+    Reload() error
+    AddEntries(entries []TimeEntry) error
+    Close() error
+}
 ```
 
 Handlers switch from:
@@ -65,7 +71,7 @@ To:
 entries, err := h.store.EntriesInRange(from, to)
 ```
 
-The in-memory `Store` implements `EntriesInRange` by calling `filterByRange` internally. The PostgreSQL `Store` implements it with a `WHERE` clause. `Version()` becomes a database-level version indicator (e.g., sequence number or `MAX(updated_at)`).
+The in-memory `Store` implements `EntriesInRange` by calling `filterByRange` internally. The PostgreSQL `PgStore` implements it with a `WHERE` clause. `AddEntries` supports both HTTP push and JSONL import ingestion paths.
 
 ## Client type generation from OpenAPI
 
