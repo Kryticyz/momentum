@@ -64,6 +64,66 @@ func (h *Handlers) checkNotModified(w http.ResponseWriter, r *http.Request) bool
 	return false
 }
 
+// dataHandler builds a GET handler that checks the method, checks ETag,
+// parses the date range, filters entries, and applies a transform function
+// to produce the response data. This eliminates the repeated boilerplate
+// across Entries, Projects, Days, and Weeks.
+func (h *Handlers) dataHandler(transform func(entries []TimeEntry, from, to string) (any, int)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !requireMethod(w, r, http.MethodGet) {
+			return
+		}
+		// ETag is store-global, not query-specific — if the store hasn't
+		// reloaded, no query's results could have changed.
+		if h.checkNotModified(w, r) {
+			return
+		}
+		from, to, errMsg := h.parseDateRange(r)
+		if errMsg != "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": errMsg})
+			return
+		}
+		entries := filterByRange(h.store.Entries(), from, to)
+		data, count := transform(entries, from, to)
+		h.writeData(w, http.StatusOK, data, count)
+	}
+}
+
+// entriesTransform returns raw entries.
+func entriesTransform(entries []TimeEntry, _, _ string) (any, int) {
+	if entries == nil {
+		entries = []TimeEntry{}
+	}
+	return entries, len(entries)
+}
+
+// projectsTransform aggregates entries by project.
+func projectsTransform(entries []TimeEntry, _, _ string) (any, int) {
+	stats := aggregateByProject(entries)
+	if stats == nil {
+		stats = []ProjectStat{}
+	}
+	return stats, len(stats)
+}
+
+// daysTransform aggregates entries by day with zero-filling.
+func daysTransform(entries []TimeEntry, from, to string) (any, int) {
+	stats := aggregateByDay(entries, from, to)
+	if stats == nil {
+		stats = []DayStat{}
+	}
+	return stats, len(stats)
+}
+
+// weeksTransform aggregates entries by week.
+func weeksTransform(entries []TimeEntry, _, _ string) (any, int) {
+	stats := aggregateByWeek(entries)
+	if stats == nil {
+		stats = []WeekStat{}
+	}
+	return stats, len(stats)
+}
+
 // Health handles GET /health.
 func (h *Handlers) Health(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
@@ -99,85 +159,22 @@ func (h *Handlers) Refresh(w http.ResponseWriter, r *http.Request) {
 
 // Entries handles GET /api/v1/entries — returns raw filtered entries.
 func (h *Handlers) Entries(w http.ResponseWriter, r *http.Request) {
-	if !requireMethod(w, r, http.MethodGet) {
-		return
-	}
-	if h.checkNotModified(w, r) {
-		return
-	}
-	from, to, errMsg := h.parseDateRange(r)
-	if errMsg != "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": errMsg})
-		return
-	}
-	entries := filterByRange(h.store.Entries(), from, to)
-	if entries == nil {
-		entries = []TimeEntry{}
-	}
-	h.writeData(w, http.StatusOK, entries, len(entries))
+	h.dataHandler(entriesTransform)(w, r)
 }
 
 // Projects handles GET /api/v1/projects.
 func (h *Handlers) Projects(w http.ResponseWriter, r *http.Request) {
-	if !requireMethod(w, r, http.MethodGet) {
-		return
-	}
-	if h.checkNotModified(w, r) {
-		return
-	}
-	from, to, errMsg := h.parseDateRange(r)
-	if errMsg != "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": errMsg})
-		return
-	}
-	entries := filterByRange(h.store.Entries(), from, to)
-	stats := aggregateByProject(entries)
-	if stats == nil {
-		stats = []ProjectStat{}
-	}
-	h.writeData(w, http.StatusOK, stats, len(stats))
+	h.dataHandler(projectsTransform)(w, r)
 }
 
 // Days handles GET /api/v1/days.
 func (h *Handlers) Days(w http.ResponseWriter, r *http.Request) {
-	if !requireMethod(w, r, http.MethodGet) {
-		return
-	}
-	if h.checkNotModified(w, r) {
-		return
-	}
-	from, to, errMsg := h.parseDateRange(r)
-	if errMsg != "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": errMsg})
-		return
-	}
-	entries := filterByRange(h.store.Entries(), from, to)
-	stats := aggregateByDay(entries, from, to)
-	if stats == nil {
-		stats = []DayStat{}
-	}
-	h.writeData(w, http.StatusOK, stats, len(stats))
+	h.dataHandler(daysTransform)(w, r)
 }
 
 // Weeks handles GET /api/v1/weeks.
 func (h *Handlers) Weeks(w http.ResponseWriter, r *http.Request) {
-	if !requireMethod(w, r, http.MethodGet) {
-		return
-	}
-	if h.checkNotModified(w, r) {
-		return
-	}
-	from, to, errMsg := h.parseDateRange(r)
-	if errMsg != "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": errMsg})
-		return
-	}
-	entries := filterByRange(h.store.Entries(), from, to)
-	stats := aggregateByWeek(entries)
-	if stats == nil {
-		stats = []WeekStat{}
-	}
-	h.writeData(w, http.StatusOK, stats, len(stats))
+	h.dataHandler(weeksTransform)(w, r)
 }
 
 // PlannedVsActual handles GET /api/v1/planned-vs-actual — stub, returns 501.

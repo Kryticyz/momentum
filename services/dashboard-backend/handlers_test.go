@@ -13,9 +13,7 @@ import (
 func newTestHandlers(t *testing.T, entries []TimeEntry) *Handlers {
 	t.Helper()
 	store := NewStore("")
-	store.mu.Lock()
-	store.entries = entries
-	store.mu.Unlock()
+	store.snap.Store(&storeSnapshot{entries: entries})
 	return &Handlers{
 		store: store,
 		config: Config{
@@ -30,10 +28,10 @@ func newTestHandlers(t *testing.T, entries []TimeEntry) *Handlers {
 func newTestHandlersLoaded(t *testing.T, entries []TimeEntry) *Handlers {
 	t.Helper()
 	store := NewStore("")
-	store.mu.Lock()
-	store.entries = entries
-	store.lastLoaded = time.Date(2026, 2, 19, 10, 0, 0, 0, time.UTC)
-	store.mu.Unlock()
+	store.snap.Store(&storeSnapshot{
+		entries:    entries,
+		lastLoaded: time.Date(2026, 2, 19, 10, 0, 0, 0, time.UTC),
+	})
 	return &Handlers{
 		store: store,
 		config: Config{

@@ -14,13 +14,11 @@ export type DayStat = components["schemas"]["DayStat"];
 export type WeekStat = components["schemas"]["WeekStat"];
 export type TimeEntry = components["schemas"]["TimeEntry"];
 export type ResponseMeta = components["schemas"]["ResponseMeta"];
-export type ApiEnvelope = components["schemas"]["APIEnvelope"];
 
-/** Wrapper used by fetchJSON to type the full envelope. */
-export interface ApiResponse<T> {
+/** Typed envelope derived from the generated APIEnvelope schema. */
+export type ApiResponse<T> = Omit<components["schemas"]["APIEnvelope"], "data"> & {
   data: T;
-  meta: ResponseMeta | null;
-}
+};
 
 /** Frontend-only type for date range filter state. */
 export interface DateRange {
