@@ -115,9 +115,10 @@ func aggregateByWeek(entries []TimeEntry) []WeekStat {
 	return stats
 }
 
-// weekStartSunday returns the YYYY-MM-DD of the Sunday that starts the ISO week
-// containing dateIso. Mirrors the plugin's getWeekStartSunday / isoToUtcDate:
-// parse as UTC noon to avoid DST day-boundary drift.
+// weekStartSunday returns the YYYY-MM-DD of the Sunday that starts the week
+// containing dateIso. Uses Sunday-based weeks (not ISO-8601 Monday-start),
+// matching the Obsidian plugin's getWeekStartSunday convention.
+// Dates are parsed as UTC noon to avoid DST day-boundary drift.
 func weekStartSunday(dateIso string) string {
 	parts := strings.SplitN(dateIso, "-", 3)
 	if len(parts) != 3 {

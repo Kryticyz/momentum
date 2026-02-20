@@ -532,7 +532,7 @@ export interface components {
             /** @example 142 */
             entries: number;
             /** @example :8080 */
-            listenAddress?: string;
+            listenAddress: string;
             /**
              * @description Database connectivity status. "ok" when connected, "unreachable" on failure, "n/a" for in-memory store.
              * @example ok

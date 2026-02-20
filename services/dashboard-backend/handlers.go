@@ -56,13 +56,13 @@ func (h *Handlers) dataHandler(transform func(entries []TimeEntry, from, to stri
 		}
 		from, to, errMsg := h.parseDateRange(r)
 		if errMsg != "" {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": errMsg})
+			writeError(w, http.StatusBadRequest, errMsg)
 			return
 		}
 		entries, err := h.store.EntriesInRange(from, to)
 		if err != nil {
 			slog.Error("failed to query entries", "error", err)
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to query entries"})
+			writeError(w, http.StatusInternalServerError, "failed to query entries")
 			return
 		}
 		data, count := transform(entries, from, to)
@@ -138,9 +138,7 @@ func (h *Handlers) Refresh(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := h.store.Reload(); err != nil {
 		slog.Error("refresh failed", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{
-			"error": err.Error(),
-		})
+		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	h.writeData(w, http.StatusOK, map[string]any{
@@ -159,9 +157,7 @@ func (h *Handlers) Entries(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		h.pushEntries(w, r)
 	default:
-		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{
-			"error": "method not allowed",
-		})
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 	}
 }
 
@@ -169,26 +165,20 @@ func (h *Handlers) Entries(w http.ResponseWriter, r *http.Request) {
 func (h *Handlers) pushEntries(w http.ResponseWriter, r *http.Request) {
 	var entries []TimeEntry
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 10<<20)).Decode(&entries); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{
-			"error": fmt.Sprintf("invalid JSON body: %v", err),
-		})
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid JSON body: %v", err))
 		return
 	}
 	if len(entries) == 0 {
-		writeJSON(w, http.StatusBadRequest, map[string]string{
-			"error": "empty entries array",
-		})
+		writeError(w, http.StatusBadRequest, "empty entries array")
 		return
 	}
 	if errMsg := validateEntries(entries); errMsg != "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": errMsg})
+		writeError(w, http.StatusBadRequest, errMsg)
 		return
 	}
 	if err := h.store.AddEntries(entries); err != nil {
 		slog.Error("push entries failed", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{
-			"error": "failed to store entries",
-		})
+		writeError(w, http.StatusInternalServerError, "failed to store entries")
 		return
 	}
 	h.writeData(w, http.StatusCreated, map[string]any{
@@ -203,22 +193,16 @@ func (h *Handlers) Import(w http.ResponseWriter, r *http.Request) {
 	}
 	entries, err := parseJSONLBody(http.MaxBytesReader(w, r.Body, 50<<20))
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{
-			"error": fmt.Sprintf("invalid JSONL body: %v", err),
-		})
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid JSONL body: %v", err))
 		return
 	}
 	if len(entries) == 0 {
-		writeJSON(w, http.StatusBadRequest, map[string]string{
-			"error": "no valid entries in body",
-		})
+		writeError(w, http.StatusBadRequest, "no valid entries in body")
 		return
 	}
 	if err := h.store.AddEntries(entries); err != nil {
 		slog.Error("import failed", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{
-			"error": "failed to store entries",
-		})
+		writeError(w, http.StatusInternalServerError, "failed to store entries")
 		return
 	}
 	h.writeData(w, http.StatusCreated, map[string]any{
@@ -265,7 +249,7 @@ func (h *Handlers) PlannedVsActual(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
-	writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "not implemented"})
+	writeError(w, http.StatusNotImplemented, "not implemented")
 }
 
 // parseDateRange reads the "from" and "to" query params. Defaults: to=today,
@@ -311,11 +295,14 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	}
 }
 
+// writeError writes a standard JSON error response.
+func writeError(w http.ResponseWriter, status int, message string) {
+	writeJSON(w, status, map[string]string{"error": message})
+}
+
 func requireMethod(w http.ResponseWriter, r *http.Request, method string) bool {
 	if r.Method != method {
-		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{
-			"error": "method not allowed",
-		})
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return false
 	}
 	return true

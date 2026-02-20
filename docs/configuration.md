@@ -22,11 +22,11 @@ The dashboard backend supports three layers of configuration, applied in order o
 | `serve_api` | `SERVE_API` | `-serve-api` | bool | `true` | Enable API routes. |
 | `serve_frontend` | `SERVE_FRONTEND` | `-serve-frontend` | bool | `true` | Enable frontend static file serving and SPA fallback. |
 | `cors_allowed_origins` | `CORS_ALLOWED_ORIGINS` | `-cors-origins` | string[] | `["http://localhost:5173"]` | Comma-separated list of allowed CORS origins. Use `*` to allow all. |
-| `read_timeout_seconds` | — | `-read-timeout` | int | `15` | HTTP server read timeout. |
-| `read_header_timeout_seconds` | — | `-read-header-timeout` | int | `10` | HTTP server read header timeout. |
-| `write_timeout_seconds` | — | `-write-timeout` | int | `30` | HTTP server write timeout. |
-| `idle_timeout_seconds` | — | `-idle-timeout` | int | `60` | HTTP server idle timeout. |
-| `shutdown_timeout_seconds` | — | `-shutdown-timeout` | int | `10` | Graceful shutdown deadline. |
+| `read_timeout_seconds` | `READ_TIMEOUT` | `-read-timeout` | int | `15` | HTTP server read timeout in seconds. |
+| `read_header_timeout_seconds` | `READ_HEADER_TIMEOUT` | `-read-header-timeout` | int | `10` | HTTP server read header timeout in seconds. |
+| `write_timeout_seconds` | `WRITE_TIMEOUT` | `-write-timeout` | int | `30` | HTTP server write timeout in seconds. |
+| `idle_timeout_seconds` | `IDLE_TIMEOUT` | `-idle-timeout` | int | `60` | HTTP server idle timeout in seconds. |
+| `shutdown_timeout_seconds` | `SHUTDOWN_TIMEOUT` | `-shutdown-timeout` | int | `10` | Graceful shutdown deadline in seconds. |
 | — | — | `-migrate` | bool | `false` | Run schema migration (and optional JSONL import) then exit. |
 | — | — | `-config` | string | `config.json` | Path to config JSON file. |
 

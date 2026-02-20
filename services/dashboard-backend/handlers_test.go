@@ -508,6 +508,69 @@ func TestRefresh_MethodNotAllowed(t *testing.T) {
 	}
 }
 
+// --- store error paths ---
+
+// errStore is a minimal EntryStore whose EntriesInRange and AddEntries always
+// return an error. Used to test the 500 code paths in handlers.
+type errStore struct {
+	*Store
+	rangeErr error
+	addErr   error
+}
+
+func (e *errStore) EntriesInRange(_, _ string) ([]TimeEntry, error) {
+	return nil, e.rangeErr
+}
+
+func (e *errStore) AddEntries(_ []TimeEntry) error {
+	return e.addErr
+}
+
+func newErrHandlers(t *testing.T, rangeErr, addErr error) *Handlers {
+	t.Helper()
+	base := NewStore("")
+	return &Handlers{
+		store:  &errStore{Store: base, rangeErr: rangeErr, addErr: addErr},
+		config: Config{Timezone: "UTC"},
+	}
+}
+
+func TestDataHandler_Returns500OnStoreError(t *testing.T) {
+	h := newErrHandlers(t, fmt.Errorf("db down"), nil)
+	rr := get(t, h.Projects, "/api/v1/projects?from=2026-02-01&to=2026-02-28")
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d body=%s", rr.Code, rr.Body)
+	}
+	var body map[string]string
+	_ = json.Unmarshal(rr.Body.Bytes(), &body)
+	if body["error"] == "" {
+		t.Error("expected non-empty error message")
+	}
+}
+
+func TestPushEntries_Returns500OnStoreError(t *testing.T) {
+	h := newErrHandlers(t, nil, fmt.Errorf("write failed"))
+	body := `[{"source":"api","filePath":"test.md","date":"2026-02-12","project":"Alpha","start":"09:00","end":"10:00","minutes":60,"note":"","lineNumber":1}]`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/entries", strings.NewReader(body))
+	rr := httptest.NewRecorder()
+	h.Entries(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d body=%s", rr.Code, rr.Body)
+	}
+}
+
+func TestImport_Returns500OnStoreError(t *testing.T) {
+	h := newErrHandlers(t, nil, fmt.Errorf("write failed"))
+	body := `{"source":"daily-note","filePath":"2026-02-12.md","date":"2026-02-12","project":"A","start":"09:00","end":"10:00","minutes":60,"note":"","lineNumber":1}
+`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/import", strings.NewReader(body))
+	rr := httptest.NewRecorder()
+	h.Import(rr, req)
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d body=%s", rr.Code, rr.Body)
+	}
+}
+
 // --- CORS middleware ---
 
 func TestCORSMiddleware_AddsHeadersForAllowedOrigin(t *testing.T) {

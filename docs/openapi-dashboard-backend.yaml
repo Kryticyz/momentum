@@ -333,7 +333,7 @@ components:
       description: Standard response envelope. All successful responses use this shape.
     HealthData:
       type: object
-      required: [status, entries, database]
+      required: [status, entries, listenAddress, database]
       properties:
         status:
           type: string

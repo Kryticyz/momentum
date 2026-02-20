@@ -205,4 +205,39 @@ func applyEnvOverrides(cfg *Config) {
 			slog.Warn("invalid POLL_INTERVAL_HOURS env var", "value", v)
 		}
 	}
+	if v := os.Getenv("READ_TIMEOUT"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.ReadTimeoutSeconds = n
+		} else {
+			slog.Warn("invalid READ_TIMEOUT env var", "value", v)
+		}
+	}
+	if v := os.Getenv("READ_HEADER_TIMEOUT"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.ReadHeaderTimeoutSeconds = n
+		} else {
+			slog.Warn("invalid READ_HEADER_TIMEOUT env var", "value", v)
+		}
+	}
+	if v := os.Getenv("WRITE_TIMEOUT"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.WriteTimeoutSeconds = n
+		} else {
+			slog.Warn("invalid WRITE_TIMEOUT env var", "value", v)
+		}
+	}
+	if v := os.Getenv("IDLE_TIMEOUT"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.IdleTimeoutSeconds = n
+		} else {
+			slog.Warn("invalid IDLE_TIMEOUT env var", "value", v)
+		}
+	}
+	if v := os.Getenv("SHUTDOWN_TIMEOUT"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.ShutdownTimeoutSeconds = n
+		} else {
+			slog.Warn("invalid SHUTDOWN_TIMEOUT env var", "value", v)
+		}
+	}
 }

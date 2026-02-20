@@ -25,16 +25,12 @@ func authMiddleware(next http.Handler, apiKey string) http.Handler {
 
 		token := extractBearerToken(r)
 		if token == "" {
-			writeJSON(w, http.StatusUnauthorized, map[string]string{
-				"error": "missing or invalid Authorization header",
-			})
+			writeError(w, http.StatusUnauthorized, "missing or invalid Authorization header")
 			return
 		}
 
 		if subtle.ConstantTimeCompare([]byte(token), keyBytes) != 1 {
-			writeJSON(w, http.StatusUnauthorized, map[string]string{
-				"error": "invalid API key",
-			})
+			writeError(w, http.StatusUnauthorized, "invalid API key")
 			return
 		}
 

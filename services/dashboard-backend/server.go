@@ -120,7 +120,7 @@ func (w *statusWriter) WriteHeader(code int) {
 }
 
 func apiNotFound(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+	writeError(w, http.StatusNotFound, "not found")
 }
 
 // spaHandler serves static files and falls back to index.html for unknown

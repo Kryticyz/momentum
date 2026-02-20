@@ -205,6 +205,24 @@ Current response:
 { "error": "not implemented" }
 ```
 
+## Entry Validation
+
+Entries submitted via `POST /api/v1/entries` or `POST /api/v1/import` are validated before storage:
+
+- `date`: required, must match `YYYY-MM-DD` format
+- `project`: required, must be non-empty
+- `minutes`: required, must be `> 0`
+
+All other fields (`source`, `filePath`, `start`, `end`, `note`, `lineNumber`) are accepted as-is without validation.
+
+## Week Aggregation
+
+The `/api/v1/weeks` endpoint groups entries using **Sunday-start weeks** (matching the Obsidian plugin's `getWeekStartSunday` convention). This is _not_ ISO-8601, which uses Monday as the week start. The `weekStart` field in responses is always the date of the Sunday that begins each week.
+
+## CORS Behaviour
+
+CORS origin matching is case-sensitive and normalises trailing slashes — `http://example.com/` and `http://example.com` are treated as the same origin.
+
 ## Data Consistency Model
 
 ### In-Memory (JSONL) Mode
@@ -217,7 +235,7 @@ Current response:
 ### PostgreSQL Mode
 
 1. **Immediate consistency** — queries hit Postgres directly. Data is available as soon as `AddEntries` commits.
-2. **Upsert deduplication** — entries are upserted on `(date, file_path, line_number)`. Re-importing the same JSONL file is idempotent.
+2. **Upsert deduplication** — entries are upserted on the composite key `(date, file_path, line_number)`. Re-importing the same JSONL file is idempotent and safe to repeat.
 3. **Connection pooling** — `pgxpool` manages connections. Health check pings the database.
 
 ## Dual Store Architecture

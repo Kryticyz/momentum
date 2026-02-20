@@ -152,6 +152,49 @@ func TestParseCSV(t *testing.T) {
 	}
 }
 
+func TestApplyEnvOverrides_InvalidBoolServeAPI_KeepsDefault(t *testing.T) {
+	t.Setenv("SERVE_API", "maybe")
+	cfg := defaultConfig()
+	applyEnvOverrides(&cfg)
+	if !cfg.ServeAPI {
+		t.Error("invalid SERVE_API env var should keep default (true), got false")
+	}
+}
+
+func TestApplyEnvOverrides_InvalidBoolServeFrontend_KeepsDefault(t *testing.T) {
+	t.Setenv("SERVE_FRONTEND", "notabool")
+	cfg := defaultConfig()
+	applyEnvOverrides(&cfg)
+	if !cfg.ServeFrontend {
+		t.Error("invalid SERVE_FRONTEND env var should keep default (true), got false")
+	}
+}
+
+func TestApplyEnvOverrides_TimeoutEnvVars(t *testing.T) {
+	t.Setenv("READ_TIMEOUT", "20")
+	t.Setenv("READ_HEADER_TIMEOUT", "5")
+	t.Setenv("WRITE_TIMEOUT", "45")
+	t.Setenv("IDLE_TIMEOUT", "120")
+	t.Setenv("SHUTDOWN_TIMEOUT", "15")
+	cfg := defaultConfig()
+	applyEnvOverrides(&cfg)
+	if cfg.ReadTimeoutSeconds != 20 {
+		t.Errorf("expected ReadTimeoutSeconds=20, got %d", cfg.ReadTimeoutSeconds)
+	}
+	if cfg.ReadHeaderTimeoutSeconds != 5 {
+		t.Errorf("expected ReadHeaderTimeoutSeconds=5, got %d", cfg.ReadHeaderTimeoutSeconds)
+	}
+	if cfg.WriteTimeoutSeconds != 45 {
+		t.Errorf("expected WriteTimeoutSeconds=45, got %d", cfg.WriteTimeoutSeconds)
+	}
+	if cfg.IdleTimeoutSeconds != 120 {
+		t.Errorf("expected IdleTimeoutSeconds=120, got %d", cfg.IdleTimeoutSeconds)
+	}
+	if cfg.ShutdownTimeoutSeconds != 15 {
+		t.Errorf("expected ShutdownTimeoutSeconds=15, got %d", cfg.ShutdownTimeoutSeconds)
+	}
+}
+
 func TestDefaultConfig_HasExpectedValues(t *testing.T) {
 	cfg := defaultConfig()
 	if cfg.Port != 8080 {

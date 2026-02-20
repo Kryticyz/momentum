@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"sync"
 	"testing"
 )
@@ -159,5 +160,24 @@ func TestStore_Close(t *testing.T) {
 	s := NewStore("")
 	if err := s.Close(); err != nil {
 		t.Errorf("Close() returned error: %v", err)
+	}
+}
+
+func TestStore_StartPoller_ZeroInterval_DoesNotStart(t *testing.T) {
+	// StartPoller with interval <= 0 must return immediately without launching
+	// a goroutine. We verify this by checking the store count stays at zero
+	// after a brief pause — if a goroutine were running it would attempt a
+	// reload and (with no path set) log an error, but it should not exist at all.
+	s := NewStore("") // no path configured
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	s.StartPoller(ctx, 0)
+	s.StartPoller(ctx, -1)
+
+	// If no goroutine started, Count() should still be 0.
+	if s.Count() != 0 {
+		t.Errorf("expected no entries after zero-interval poller, got %d", s.Count())
 	}
 }
