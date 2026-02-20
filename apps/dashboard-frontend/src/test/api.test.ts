@@ -23,7 +23,7 @@ describe("api client", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/projects?from=2026-02-01&to=2026-02-28",
-      { signal: undefined }
+      { signal: undefined, headers: {} }
     );
   });
 
@@ -42,12 +42,12 @@ describe("api client", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
       "/api/v1/days?from=2026-02-01&to=2026-02-28",
-      { signal: undefined }
+      { signal: undefined, headers: {} }
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       "/api/v1/weeks?from=2026-02-01&to=2026-02-28",
-      { signal: undefined }
+      { signal: undefined, headers: {} }
     );
   });
 
@@ -62,7 +62,7 @@ describe("api client", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/projects?from=2026-02-01&to=2026-02-28",
-      { signal: controller.signal }
+      { signal: controller.signal, headers: {} }
     );
   });
 
@@ -72,6 +72,6 @@ describe("api client", () => {
 
     await postRefresh();
 
-    expect(fetchMock).toHaveBeenCalledWith("/refresh", { method: "POST" });
+    expect(fetchMock).toHaveBeenCalledWith("/refresh", { method: "POST", headers: {} });
   });
 });

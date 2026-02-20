@@ -1,10 +1,18 @@
 import type { ApiResponse, DateRange, DayStat, ProjectStat, WeekStat } from "./types";
 
 const BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "";
+const API_KEY = (import.meta.env.VITE_API_KEY as string | undefined) ?? "";
 const API_PREFIX = "/api/v1";
 
+function authHeaders(): Record<string, string> {
+  if (API_KEY) {
+    return { Authorization: `Bearer ${API_KEY}` };
+  }
+  return {};
+}
+
 async function fetchJSON<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, { signal });
+  const res = await fetch(`${BASE}${path}`, { signal, headers: authHeaders() });
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`${res.status} ${res.statusText}: ${text}`);
@@ -30,7 +38,7 @@ export function fetchWeeks(range: DateRange, signal?: AbortSignal): Promise<Week
 }
 
 export async function postRefresh(): Promise<void> {
-  const res = await fetch(`${BASE}/refresh`, { method: "POST" });
+  const res = await fetch(`${BASE}/refresh`, { method: "POST", headers: authHeaders() });
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`Refresh failed: ${res.status} ${text}`);
