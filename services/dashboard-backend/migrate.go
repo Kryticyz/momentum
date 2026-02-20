@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"log"
+	"log/slog"
+	"os"
 	"time"
 )
 
@@ -11,46 +11,51 @@ import (
 // imports entries from a JSONL file. Called with the -migrate flag.
 func runMigrate(cfg Config) {
 	if cfg.DatabaseURL == "" {
-		log.Fatal("migrate: -database-url (or DATABASE_URL) is required")
+		slog.Error("migrate: -database-url (or DATABASE_URL) is required")
+		os.Exit(1)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	log.Printf("migrate: connecting to database...")
+	slog.Info("migrate: connecting to database")
 	pg, err := NewPgStore(ctx, cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("migrate: connect failed: %v", err)
+		slog.Error("migrate: connect failed", "error", err)
+		os.Exit(1)
 	}
 	defer pg.Close()
 
-	log.Printf("migrate: running schema migration...")
+	slog.Info("migrate: running schema migration")
 	if err := pg.Migrate(ctx); err != nil {
-		log.Fatalf("migrate: schema migration failed: %v", err)
+		slog.Error("migrate: schema migration failed", "error", err)
+		os.Exit(1)
 	}
-	log.Printf("migrate: schema migration complete")
+	slog.Info("migrate: schema migration complete")
 
 	if cfg.JSONLPath == "" {
-		log.Printf("migrate: no JSONL path provided, skipping data import")
+		slog.Info("migrate: no JSONL path provided, skipping data import")
 		return
 	}
 
-	log.Printf("migrate: loading entries from %s...", cfg.JSONLPath)
+	slog.Info("migrate: loading entries from JSONL", "path", cfg.JSONLPath)
 	entries, err := loadJSONL(cfg.JSONLPath)
 	if err != nil {
-		log.Fatalf("migrate: load JSONL failed: %v", err)
+		slog.Error("migrate: load JSONL failed", "error", err)
+		os.Exit(1)
 	}
 
 	if len(entries) == 0 {
-		log.Printf("migrate: no entries found in JSONL file")
+		slog.Info("migrate: no entries found in JSONL file")
 		return
 	}
 
-	log.Printf("migrate: importing %d entries...", len(entries))
+	slog.Info("migrate: importing entries", "count", len(entries))
 	if err := pg.AddEntries(entries); err != nil {
-		log.Fatalf("migrate: import failed: %v", err)
+		slog.Error("migrate: import failed", "error", err)
+		os.Exit(1)
 	}
 
 	count := pg.Count()
-	fmt.Printf("migrate: complete — %d entries now in database\n", count)
+	slog.Info("migrate: complete", "entries", count)
 }

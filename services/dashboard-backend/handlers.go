@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"time"
@@ -60,7 +60,7 @@ func (h *Handlers) dataHandler(transform func(entries []TimeEntry, from, to stri
 		}
 		entries, err := h.store.EntriesInRange(from, to)
 		if err != nil {
-			log.Printf("EntriesInRange: %v", err)
+			slog.Error("failed to query entries", "error", err)
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to query entries"})
 			return
 		}
@@ -122,7 +122,7 @@ func (h *Handlers) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.store.Reload(); err != nil {
-		log.Printf("Refresh: %v", err)
+		slog.Error("refresh failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{
 			"error": err.Error(),
 		})
@@ -170,7 +170,7 @@ func (h *Handlers) pushEntries(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.store.AddEntries(entries); err != nil {
-		log.Printf("pushEntries: %v", err)
+		slog.Error("push entries failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{
 			"error": "failed to store entries",
 		})
@@ -200,7 +200,7 @@ func (h *Handlers) Import(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.store.AddEntries(entries); err != nil {
-		log.Printf("Import: %v", err)
+		slog.Error("import failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{
 			"error": "failed to store entries",
 		})
@@ -292,7 +292,7 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(v); err != nil {
-		log.Printf("writeJSON encode error: %v", err)
+		slog.Error("writeJSON encode error", "error", err)
 	}
 }
 

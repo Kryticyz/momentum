@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 	"flag"
-	"log"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -108,14 +108,14 @@ func loadConfig() Config {
 		if parsed, err := strconv.ParseBool(*serveAPIFlag); err == nil {
 			cfg.ServeAPI = parsed
 		} else {
-			log.Printf("Config: invalid -serve-api value %q (expected true/false)", *serveAPIFlag)
+			slog.Warn("invalid -serve-api flag value", "value", *serveAPIFlag)
 		}
 	}
 	if *serveFrontendFlag != "" {
 		if parsed, err := strconv.ParseBool(*serveFrontendFlag); err == nil {
 			cfg.ServeFrontend = parsed
 		} else {
-			log.Printf("Config: invalid -serve-frontend value %q (expected true/false)", *serveFrontendFlag)
+			slog.Warn("invalid -serve-frontend flag value", "value", *serveFrontendFlag)
 		}
 	}
 	if *corsOriginsFlag != "" {

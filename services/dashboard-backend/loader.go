@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"os"
 )
 
@@ -50,7 +50,7 @@ func loadJSONL(path string) ([]TimeEntry, error) {
 		}
 		var e TimeEntry
 		if err := json.Unmarshal(line, &e); err != nil {
-			log.Printf("JSONL loader: skipping malformed line %d: %v", lineNum, err)
+			slog.Warn("skipping malformed JSONL line", "line", lineNum, "error", err)
 			continue
 		}
 		entries = append(entries, e)

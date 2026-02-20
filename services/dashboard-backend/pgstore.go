@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"sync/atomic"
 	"time"
 
@@ -86,7 +86,7 @@ func (s *PgStore) Count() int {
 	var count int
 	err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM time_entries`).Scan(&count)
 	if err != nil {
-		log.Printf("pgstore.Count: %v", err)
+		slog.Error("pgstore count query failed", "error", err)
 		return 0
 	}
 	return count

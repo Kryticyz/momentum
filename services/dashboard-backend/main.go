@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -13,6 +13,8 @@ import (
 )
 
 func main() {
+	slog.SetDefault(initLogger())
+
 	cfg := loadConfig()
 
 	// Migration mode: run schema migration, import JSONL if provided, then exit.
@@ -22,7 +24,8 @@ func main() {
 	}
 
 	if !cfg.ServeAPI && !cfg.ServeFrontend {
-		log.Fatal("config invalid: at least one of serve_api or serve_frontend must be true")
+		slog.Error("config invalid: at least one of serve_api or serve_frontend must be true")
+		os.Exit(1)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -32,22 +35,23 @@ func main() {
 	if cfg.DatabaseURL != "" {
 		pg, err := NewPgStore(ctx, cfg.DatabaseURL)
 		if err != nil {
-			log.Fatalf("PostgreSQL connect failed: %v", err)
+			slog.Error("PostgreSQL connect failed", "error", err)
+			os.Exit(1)
 		}
 		defer pg.Close()
 
 		if err := pg.Migrate(ctx); err != nil {
-			log.Fatalf("PostgreSQL migration failed: %v", err)
+			slog.Error("PostgreSQL migration failed", "error", err)
+			os.Exit(1)
 		}
 		store = pg
-		log.Printf("Store: PostgreSQL")
+		slog.Info("store initialized", "backend", "postgresql")
 	} else {
 		mem := NewStore(cfg.JSONLPath)
 		if cfg.JSONLPath == "" {
-			log.Printf("Warning: jsonl_path is empty; store starts empty until configured")
+			slog.Warn("jsonl_path is empty; store starts empty until configured")
 		} else if err := mem.Reload(); err != nil {
-			log.Printf("Warning: initial JSONL load failed: %v", err)
-			log.Printf("Hint: run export in Obsidian, verify jsonl_path, then POST /refresh")
+			slog.Warn("initial JSONL load failed", "error", err, "hint", "run export in Obsidian, verify jsonl_path, then POST /refresh")
 		}
 
 		// Start background poller only for in-memory store.
@@ -55,7 +59,7 @@ func main() {
 			mem.StartPoller(ctx, time.Duration(cfg.PollIntervalHours)*time.Hour)
 		}
 		store = mem
-		log.Printf("Store: in-memory (JSONL)")
+		slog.Info("store initialized", "backend", "jsonl")
 	}
 
 	h := &Handlers{store: store, config: cfg}
@@ -63,12 +67,11 @@ func main() {
 	handler := requestLogger(authMiddleware(corsMiddleware(mux, cfg.CORSAllowedOrigins), cfg.APIKey))
 
 	addr := fmt.Sprintf("%s:%d", cfg.BindAddress, cfg.Port)
-	log.Printf("Listening on %s", addr)
-	log.Printf(
-		"Timezone=%s | ServeAPI=%t | ServeFrontend=%t",
-		cfg.Timezone,
-		cfg.ServeAPI,
-		cfg.ServeFrontend,
+	slog.Info("server starting",
+		"address", addr,
+		"timezone", cfg.Timezone,
+		"serve_api", cfg.ServeAPI,
+		"serve_frontend", cfg.ServeFrontend,
 	)
 
 	srv := &http.Server{
@@ -88,10 +91,11 @@ func main() {
 	select {
 	case err := <-serverErr:
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatal(err)
+			slog.Error("server failed", "error", err)
+			os.Exit(1)
 		}
 	case <-ctx.Done():
-		log.Printf("Shutdown signal received")
+		slog.Info("shutdown signal received")
 		shutdownCtx, cancel := context.WithTimeout(
 			context.Background(),
 			time.Duration(cfg.ShutdownTimeoutSeconds)*time.Second,
@@ -99,17 +103,17 @@ func main() {
 		defer cancel()
 
 		if err := srv.Shutdown(shutdownCtx); err != nil {
-			log.Printf("Graceful shutdown failed: %v; forcing close", err)
+			slog.Error("graceful shutdown failed, forcing close", "error", err)
 			if closeErr := srv.Close(); closeErr != nil {
-				log.Printf("Server close error: %v", closeErr)
+				slog.Error("server close error", "error", closeErr)
 			}
 		}
 
 		if err := <-serverErr; err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Printf("Server exited with error: %v", err)
+			slog.Error("server exited with error", "error", err)
 		}
 
 		store.Close()
-		log.Printf("Shutdown complete")
+		slog.Info("shutdown complete")
 	}
 }

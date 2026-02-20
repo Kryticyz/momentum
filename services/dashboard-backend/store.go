@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -59,7 +59,7 @@ func (s *Store) Reload() error {
 		lastLoaded: time.Now(),
 	})
 
-	log.Printf("Store: loaded %d entries from %s", len(entries), path)
+	slog.Info("store loaded", "entries", len(entries), "path", path)
 	return nil
 }
 
@@ -119,7 +119,7 @@ func (s *Store) StartPoller(ctx context.Context, interval time.Duration) {
 				return
 			case <-ticker.C:
 				if err := s.Reload(); err != nil {
-					log.Printf("Store poller: reload failed: %v", err)
+					slog.Error("store poller reload failed", "error", err)
 				}
 			}
 		}
