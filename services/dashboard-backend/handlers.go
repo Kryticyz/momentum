@@ -105,6 +105,10 @@ func weeksTransform(entries []TimeEntry, _, _ string) (any, int) {
 	return stats, len(stats)
 }
 
+// backendVersion is the current API version string. Set at build time via
+// -ldflags="-X main.backendVersion=x.y.z"; defaults to "dev".
+var backendVersion = "dev"
+
 // Health handles GET /health.
 func (h *Handlers) Health(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
@@ -124,11 +128,22 @@ func (h *Handlers) Health(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.writeData(w, http.StatusOK, map[string]any{
-		"status":        "ok",
-		"entries":       h.store.Count(),
-		"listenAddress": fmt.Sprintf("%s:%d", h.config.BindAddress, h.config.Port),
-		"database":      dbStatus,
+		"status":         "ok",
+		"entries":        h.store.Count(),
+		"listenAddress":  fmt.Sprintf("%s:%d", h.config.BindAddress, h.config.Port),
+		"database":       dbStatus,
+		"authMode":       resolveAuthMode(&h.config),
+		"backendVersion": backendVersion,
 	}, h.store.Count())
+}
+
+// resolveAuthMode returns the active authentication mode label. Future OAuth
+// support will introduce "dual" and "oauth" modes.
+func resolveAuthMode(cfg *Config) string {
+	if cfg.APIKey == "" {
+		return "none"
+	}
+	return "api-key"
 }
 
 // Refresh handles POST /refresh — reloads the JSONL file immediately.
@@ -148,11 +163,32 @@ func (h *Handlers) Refresh(w http.ResponseWriter, r *http.Request) {
 }
 
 // Entries handles /api/v1/entries:
-//   - GET returns raw filtered entries
+//   - GET returns raw filtered entries (supports ?includeDeleted=true in PG mode)
 //   - POST accepts a JSON array of entries to push into the store
 func (h *Handlers) Entries(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
+		includeDeleted := r.URL.Query().Get("includeDeleted") == "true"
+		if includeDeleted {
+			ms, ok := h.store.(MutationStore)
+			if !ok {
+				writeError(w, http.StatusNotImplemented, "includeDeleted requires PostgreSQL mode")
+				return
+			}
+			from, to, errMsg := h.parseDateRange(r)
+			if errMsg != "" {
+				writeError(w, http.StatusBadRequest, errMsg)
+				return
+			}
+			entries, err := ms.EntriesInRangeAll(from, to)
+			if err != nil {
+				slog.Error("failed to query entries (includeDeleted)", "error", err)
+				writeError(w, http.StatusInternalServerError, "failed to query entries")
+				return
+			}
+			h.writeData(w, http.StatusOK, entries, len(entries))
+			return
+		}
 		h.dataHandler(entriesTransform)(w, r)
 	case http.MethodPost:
 		h.pushEntries(w, r)

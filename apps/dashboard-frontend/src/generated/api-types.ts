@@ -11,7 +11,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Service health and store metadata */
+        /** Service health, store metadata, auth mode, and backend version */
         get: {
             parameters: {
                 query?: never;
@@ -122,6 +122,8 @@ export interface paths {
                     from?: components["parameters"]["From"];
                     /** @description End date in YYYY-MM-DD format. */
                     to?: components["parameters"]["To"];
+                    /** @description Include soft-deleted entries. PostgreSQL mode only; returns 501 in in-memory mode. */
+                    includeDeleted?: boolean;
                 };
                 header?: never;
                 path?: never;
@@ -151,6 +153,15 @@ export interface paths {
                 };
                 /** @description Unauthorized */
                 401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Feature requires PostgreSQL mode */
+                501: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -212,6 +223,150 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/entries/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Soft-delete a single entry (PostgreSQL mode only)
+         * @description Sets deleted_at on the entry. Enforces 30-day mutation window.
+         *     Requires PostgreSQL mode; returns 501 in in-memory mode.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Entry soft-deleted */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["APIEnvelope"] & {
+                            data?: {
+                                deleted?: boolean;
+                                /** Format: uuid */
+                                id?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Edit window exceeded or entry not found */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PolicyErrorResponse"];
+                    };
+                };
+                /** @description Feature requires PostgreSQL mode */
+                501: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /**
+         * Partial update of a single entry (PostgreSQL mode only)
+         * @description Updates mutable fields on a non-deleted entry. Enforces the 30-day
+         *     mutation window — entries older than 30 days return 422.
+         *     Requires PostgreSQL mode; returns 501 in in-memory mode.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EntryPatch"];
+                };
+            };
+            responses: {
+                /** @description Updated entry */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["APIEnvelope"] & {
+                            data?: components["schemas"]["TimeEntry"];
+                        };
+                    };
+                };
+                /** @description Invalid request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Edit window exceeded or entry not found */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PolicyErrorResponse"];
+                    };
+                };
+                /** @description Feature requires PostgreSQL mode */
+                501: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/api/v1/projects": {
         parameters: {
             query?: never;
@@ -219,7 +374,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Project totals in range */
+        /** Project totals in range (excludes soft-deleted entries) */
         get: {
             parameters: {
                 query?: {
@@ -280,7 +435,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Daily totals (zero-filled) */
+        /** Daily totals (zero-filled, excludes soft-deleted entries) */
         get: {
             parameters: {
                 query?: {
@@ -341,7 +496,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Weekly totals */
+        /** Weekly totals (Sunday-start, excludes soft-deleted entries) */
         get: {
             parameters: {
                 query?: {
@@ -505,6 +660,472 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/timer/active": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the current active timer session (PostgreSQL mode only)
+         * @description Returns the active timer or null data when no timer is running.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Active timer or null */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["TimerSession"] | null;
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Feature requires PostgreSQL mode */
+                501: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/timer/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start a new timer session (PostgreSQL mode only)
+         * @description Creates a new active timer. Returns 409 if a timer is already active.
+         *     Supply clientMutationId for idempotent offline replay.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TimerStartRequest"];
+                };
+            };
+            responses: {
+                /** @description Timer started */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["TimerSession"];
+                        };
+                    };
+                };
+                /** @description Missing required field */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Timer already active */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TimerConflictResponse"];
+                    };
+                };
+                /** @description Feature requires PostgreSQL mode */
+                501: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/timer/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop the active timer and materialise a TimeEntry (PostgreSQL mode only)
+         * @description Stops the current active session and creates a TimeEntry record.
+         *     Returns 409 if no timer is active.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["TimerStopRequest"];
+                };
+            };
+            responses: {
+                /** @description Timer stopped and entry created */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: {
+                                session?: components["schemas"]["TimerSession"];
+                                entry?: components["schemas"]["TimeEntry"];
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No active timer */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TimerConflictResponse"];
+                    };
+                };
+                /** @description Feature requires PostgreSQL mode */
+                501: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sync/changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Incremental change feed for offline sync (PostgreSQL mode only)
+         * @description Returns entries (including soft-deleted) updated after the since cursor,
+         *     ordered by updatedAt ASC. Use meta.nextSince as the next cursor.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description RFC3339 cursor. Returns all changes when omitted. */
+                    since?: string;
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Changed entries with next cursor */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SyncChangesResponse"];
+                    };
+                };
+                /** @description Invalid since parameter */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Feature requires PostgreSQL mode */
+                501: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/preferences/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List all project color preferences (PostgreSQL mode only) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Project preferences */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["APIEnvelope"] & {
+                            data?: components["schemas"]["ProjectPreference"][];
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Feature requires PostgreSQL mode */
+                501: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/preferences/projects/{project}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set color for a project (PostgreSQL mode only) */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    project: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @example #3A7AFE */
+                        colorHex: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Preference saved */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["APIEnvelope"] & {
+                            data?: {
+                                project?: string;
+                                colorHex?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Invalid colorHex */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Feature requires PostgreSQL mode */
+                501: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        /** Remove color preference for a project (PostgreSQL mode only) */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    project: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Preference deleted */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["APIEnvelope"] & {
+                            data?: {
+                                deleted?: boolean;
+                                project?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Feature requires PostgreSQL mode */
+                501: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -534,11 +1155,22 @@ export interface components {
             /** @example :8080 */
             listenAddress: string;
             /**
-             * @description Database connectivity status. "ok" when connected, "unreachable" on failure, "n/a" for in-memory store.
+             * @description Database connectivity status.
              * @example ok
              * @enum {string}
              */
             database: "ok" | "unreachable" | "n/a";
+            /**
+             * @description Active authentication mode.
+             * @example api-key
+             * @enum {string}
+             */
+            authMode: "none" | "api-key" | "dual" | "oauth";
+            /**
+             * @description Backend build version. "dev" when not set at build time.
+             * @example 3.0.0
+             */
+            backendVersion: string;
         };
         RefreshData: {
             /** @example true */
@@ -549,7 +1181,42 @@ export interface components {
         ErrorResponse: {
             error: string;
         };
+        PolicyErrorResponse: {
+            /** @example edit window exceeded */
+            error: string;
+            /**
+             * @example edit_window_exceeded
+             * @enum {string}
+             */
+            code: "edit_window_exceeded";
+        };
         TimeEntry: {
+            /**
+             * Format: uuid
+             * @description Stable server-assigned UUID. Present in PostgreSQL mode.
+             * @example 550e8400-e29b-41d4-a716-446655440000
+             */
+            id?: string;
+            /**
+             * @description User identity. Default "local-user" in single-user mode.
+             * @example local-user
+             */
+            userId?: string;
+            /**
+             * Format: date-time
+             * @description RFC3339 timestamp when the entry was first created.
+             */
+            createdAt?: string;
+            /**
+             * Format: date-time
+             * @description RFC3339 timestamp of the last mutation.
+             */
+            updatedAt?: string;
+            /**
+             * Format: date-time
+             * @description RFC3339 soft-delete timestamp, or null when not deleted.
+             */
+            deletedAt?: string | null;
             /** @example daily-note */
             source: string;
             /** @example 2026-02-12.md */
@@ -568,6 +1235,92 @@ export interface components {
             note: string;
             /** @example 42 */
             lineNumber: number;
+            /** @description Optional tags. Reserved for future Obsidian tag sync. */
+            tags?: string[];
+        };
+        /** @description Partial update for a TimeEntry. Only provided fields are applied. */
+        EntryPatch: {
+            project?: string;
+            start?: string;
+            end?: string;
+            minutes?: number;
+            note?: string;
+        };
+        TimerSession: {
+            /** Format: uuid */
+            id: string;
+            userId: string;
+            project: string;
+            note: string;
+            /** Format: date-time */
+            startedAt: string;
+            /**
+             * Format: date-time
+             * @description Empty string when timer is still running.
+             */
+            stoppedAt?: string;
+            sourceDeviceId?: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        TimerStartRequest: {
+            /** @example Project A */
+            project: string;
+            note?: string;
+            /**
+             * Format: date-time
+             * @description Client-provided start time. Defaults to server time when omitted.
+             */
+            startedAt?: string;
+            /** @description Optional device identifier for multi-device correlation. */
+            sourceDeviceId?: string;
+            /**
+             * Format: uuid
+             * @description Idempotency key for offline replay.
+             */
+            clientMutationId?: string;
+        };
+        TimerStopRequest: {
+            /**
+             * Format: date-time
+             * @description Client-provided stop time. Defaults to server time when omitted.
+             */
+            stoppedAt?: string;
+            /** @description Override or append to the timer session note. */
+            note?: string;
+            /**
+             * Format: uuid
+             * @description Idempotency key for offline replay.
+             */
+            clientMutationId?: string;
+        };
+        TimerConflictResponse: {
+            error: string;
+            /** @enum {string} */
+            code: "timer_already_active" | "timer_not_active";
+            /** @description Included in the already_active case. */
+            session?: components["schemas"]["TimerSession"];
+        };
+        SyncChangesResponse: {
+            data: components["schemas"]["TimeEntry"][];
+            meta: {
+                count: number;
+                /**
+                 * Format: date-time
+                 * @description Use as the next since parameter to fetch only newer changes.
+                 */
+                nextSince: string;
+            };
+        };
+        ProjectPreference: {
+            /** @example Project A */
+            project: string;
+            /** @example #3A7AFE */
+            colorHex: string;
+            /** Format: date-time */
+            updatedAt: string;
         };
         ProjectStat: {
             /** @example Project A */

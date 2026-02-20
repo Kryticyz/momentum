@@ -30,6 +30,11 @@ type Config struct {
 
 	// Migrate is set via CLI flag to run schema migration and exit.
 	Migrate bool `json:"-"`
+
+	// ProductionMode, when true, enforces HTTPS-only transport. Plaintext
+	// requests are rejected unless AllowInsecureHTTP is also true.
+	ProductionMode    bool `json:"production_mode"`
+	AllowInsecureHTTP bool `json:"allow_insecure_http"`
 }
 
 func defaultConfig() Config {
@@ -238,6 +243,20 @@ func applyEnvOverrides(cfg *Config) {
 			cfg.ShutdownTimeoutSeconds = n
 		} else {
 			slog.Warn("invalid SHUTDOWN_TIMEOUT env var", "value", v)
+		}
+	}
+	if v := os.Getenv("PRODUCTION_MODE"); v != "" {
+		if parsed, err := strconv.ParseBool(v); err == nil {
+			cfg.ProductionMode = parsed
+		} else {
+			slog.Warn("invalid PRODUCTION_MODE env var", "value", v)
+		}
+	}
+	if v := os.Getenv("ALLOW_INSECURE_HTTP"); v != "" {
+		if parsed, err := strconv.ParseBool(v); err == nil {
+			cfg.AllowInsecureHTTP = parsed
+		} else {
+			slog.Warn("invalid ALLOW_INSECURE_HTTP env var", "value", v)
 		}
 	}
 }

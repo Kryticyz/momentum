@@ -9,17 +9,27 @@ import (
 	"os"
 )
 
-// TimeEntry mirrors the JSONL schema emitted by the Obsidian plugin.
+// TimeEntry mirrors the JSONL schema emitted by the Obsidian plugin, extended
+// with server-assigned identity and lifecycle fields for native client support.
 type TimeEntry struct {
-	Source     string `json:"source"`
-	FilePath   string `json:"filePath"`
-	Date       string `json:"date"`       // YYYY-MM-DD in user's local timezone
-	Project    string `json:"project"`    // wiki-link leaf, original case
-	Start      string `json:"start"`      // HH:mm
-	End        string `json:"end"`        // HH:mm
-	Minutes    int    `json:"minutes"`    // authoritative for aggregation
-	Note       string `json:"note"`
-	LineNumber int    `json:"lineNumber"`
+	// Identity — server assigned; stable across sync cycles.
+	ID        string  `json:"id,omitempty"`        // UUID primary key
+	CreatedAt string  `json:"createdAt,omitempty"` // RFC3339, server set on insert
+	UpdatedAt string  `json:"updatedAt,omitempty"` // RFC3339, server set on every mutation
+	DeletedAt *string `json:"deletedAt,omitempty"` // RFC3339 or null; soft-delete marker
+	UserID    string  `json:"userId,omitempty"`    // default "local-user"; future OAuth sub
+
+	// Core fields from Obsidian plugin JSONL export.
+	Source     string   `json:"source"`
+	FilePath   string   `json:"filePath"`
+	Date       string   `json:"date"`       // YYYY-MM-DD in user's local timezone
+	Project    string   `json:"project"`    // wiki-link leaf, original case
+	Start      string   `json:"start"`      // HH:mm
+	End        string   `json:"end"`        // HH:mm
+	Minutes    int      `json:"minutes"`    // authoritative for aggregation
+	Note       string   `json:"note"`
+	LineNumber int      `json:"lineNumber"`
+	Tags       []string `json:"tags,omitempty"` // optional; future Obsidian tag sync
 }
 
 // loadJSONL reads the JSONL file at path, decoding each non-empty line.

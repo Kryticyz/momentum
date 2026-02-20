@@ -64,7 +64,17 @@ func main() {
 
 	h := &Handlers{store: store, config: cfg}
 	mux := newMux(h, cfg)
-	handler := requestLogger(authMiddleware(corsMiddleware(mux, cfg.CORSAllowedOrigins), cfg.APIKey))
+	handler := requestLogger(
+		requestIDMiddleware(
+			httpsEnforcer(
+				authMiddleware(
+					corsMiddleware(mux, cfg.CORSAllowedOrigins),
+					cfg.APIKey,
+				),
+				cfg,
+			),
+		),
+	)
 
 	addr := fmt.Sprintf("%s:%d", cfg.BindAddress, cfg.Port)
 	slog.Info("server starting",
