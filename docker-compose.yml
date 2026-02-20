@@ -1,0 +1,55 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: momentum
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: momentum
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U momentum"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://momentum:${POSTGRES_PASSWORD}@db:5432/momentum?sslmode=disable
+      API_KEY: ${API_KEY:-}
+      PORT: "8080"
+      BIND_ADDRESS: "0.0.0.0"
+      TIMEZONE: ${TIMEZONE:-Australia/Sydney}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-*}
+      SERVE_API: "true"
+      SERVE_FRONTEND: "true"
+    command: ["-migrate"]
+    # After migration, restart with no args to run the server.
+    # Override entrypoint to run migration then server:
+    entrypoint: ["/bin/sh", "-c", "./momentum-dashboard -migrate; exec ./momentum-dashboard"]
+    expose:
+      - "8080"
+
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
