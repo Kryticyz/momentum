@@ -14,26 +14,48 @@ import (
 
 func main() {
 	cfg := loadConfig()
-	if !cfg.ServeAPI && !cfg.ServeFrontend {
-		log.Fatal("config invalid: at least one of serve_api or serve_frontend must be true")
+
+	// Migration mode: run schema migration, import JSONL if provided, then exit.
+	if cfg.Migrate {
+		runMigrate(cfg)
+		return
 	}
 
-	store := NewStore(cfg.JSONLPath)
-
-	// Initial load is non-fatal if the file does not exist yet.
-	if cfg.JSONLPath == "" {
-		log.Printf("Warning: jsonl_path is empty; store starts empty until configured")
-	} else if err := store.Reload(); err != nil {
-		log.Printf("Warning: initial JSONL load failed: %v", err)
-		log.Printf("Hint: run export in Obsidian, verify jsonl_path, then POST /refresh")
+	if !cfg.ServeAPI && !cfg.ServeFrontend {
+		log.Fatal("config invalid: at least one of serve_api or serve_frontend must be true")
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// Start background poller when configured.
-	if cfg.JSONLPath != "" && cfg.PollIntervalHours > 0 {
-		store.StartPoller(ctx, time.Duration(cfg.PollIntervalHours)*time.Hour)
+	var store EntryStore
+	if cfg.DatabaseURL != "" {
+		pg, err := NewPgStore(ctx, cfg.DatabaseURL)
+		if err != nil {
+			log.Fatalf("PostgreSQL connect failed: %v", err)
+		}
+		defer pg.Close()
+
+		if err := pg.Migrate(ctx); err != nil {
+			log.Fatalf("PostgreSQL migration failed: %v", err)
+		}
+		store = pg
+		log.Printf("Store: PostgreSQL")
+	} else {
+		mem := NewStore(cfg.JSONLPath)
+		if cfg.JSONLPath == "" {
+			log.Printf("Warning: jsonl_path is empty; store starts empty until configured")
+		} else if err := mem.Reload(); err != nil {
+			log.Printf("Warning: initial JSONL load failed: %v", err)
+			log.Printf("Hint: run export in Obsidian, verify jsonl_path, then POST /refresh")
+		}
+
+		// Start background poller only for in-memory store.
+		if cfg.JSONLPath != "" && cfg.PollIntervalHours > 0 {
+			mem.StartPoller(ctx, time.Duration(cfg.PollIntervalHours)*time.Hour)
+		}
+		store = mem
+		log.Printf("Store: in-memory (JSONL)")
 	}
 
 	h := &Handlers{store: store, config: cfg}
@@ -43,13 +65,10 @@ func main() {
 	addr := fmt.Sprintf("%s:%d", cfg.BindAddress, cfg.Port)
 	log.Printf("Listening on %s", addr)
 	log.Printf(
-		"JSONL=%q | Timezone=%s | Poll=%dh | ServeAPI=%t | ServeFrontend=%t | FrontendDir=%q",
-		cfg.JSONLPath,
+		"Timezone=%s | ServeAPI=%t | ServeFrontend=%t",
 		cfg.Timezone,
-		cfg.PollIntervalHours,
 		cfg.ServeAPI,
 		cfg.ServeFrontend,
-		cfg.FrontendDir,
 	)
 
 	srv := &http.Server{
@@ -89,6 +108,8 @@ func main() {
 		if err := <-serverErr; err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Printf("Server exited with error: %v", err)
 		}
+
+		store.Close()
 		log.Printf("Shutdown complete")
 	}
 }

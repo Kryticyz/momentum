@@ -11,6 +11,7 @@ import (
 
 type Config struct {
 	JSONLPath          string   `json:"jsonl_path"`
+	DatabaseURL        string   `json:"database_url"`
 	Port               int      `json:"port"`
 	BindAddress        string   `json:"bind_address"`
 	Timezone           string   `json:"timezone"`
@@ -25,6 +26,9 @@ type Config struct {
 	WriteTimeoutSeconds      int `json:"write_timeout_seconds"`
 	IdleTimeoutSeconds       int `json:"idle_timeout_seconds"`
 	ShutdownTimeoutSeconds   int `json:"shutdown_timeout_seconds"`
+
+	// Migrate is set via CLI flag to run schema migration and exit.
+	Migrate bool `json:"-"`
 }
 
 func defaultConfig() Config {
@@ -48,6 +52,8 @@ func defaultConfig() Config {
 func loadConfig() Config {
 	configPath := flag.String("config", "config.json", "path to config JSON file")
 	jsonlFlag := flag.String("jsonl", "", "path to JSONL export file")
+	databaseURLFlag := flag.String("database-url", "", "PostgreSQL connection URL")
+	migrateFlag := flag.Bool("migrate", false, "run schema migration (and optional JSONL import) then exit")
 	portFlag := flag.Int("port", 0, "HTTP port")
 	bindFlag := flag.String("bind", "", "bind address (e.g. 0.0.0.0, 127.0.0.1)")
 	tzFlag := flag.String("tz", "", "timezone (e.g. Australia/Sydney)")
@@ -74,6 +80,10 @@ func loadConfig() Config {
 	if *jsonlFlag != "" {
 		cfg.JSONLPath = *jsonlFlag
 	}
+	if *databaseURLFlag != "" {
+		cfg.DatabaseURL = *databaseURLFlag
+	}
+	cfg.Migrate = *migrateFlag
 	if *portFlag != 0 {
 		cfg.Port = *portFlag
 	}
