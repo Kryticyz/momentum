@@ -3,22 +3,32 @@ package main
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
-// Store holds the in-memory time entries and tracks when they were last loaded.
-type Store struct {
-	mu         sync.RWMutex
-	path       string
+// storeSnapshot holds an immutable point-in-time view of the loaded data.
+// Once created, a snapshot is never modified — readers simply load the pointer.
+type storeSnapshot struct {
 	entries    []TimeEntry
 	lastLoaded time.Time
 }
 
+// Store holds the in-memory time entries using atomic pointer swaps for
+// lock-free reads. Only Reload needs the mutex (to serialize writes).
+type Store struct {
+	mu   sync.Mutex // serializes Reload / Load calls
+	path string
+	snap atomic.Pointer[storeSnapshot]
+}
+
 // NewStore initializes a new in-memory store for the JSONL path.
 func NewStore(path string) *Store {
-	return &Store{path: path}
+	s := &Store{path: path}
+	s.snap.Store(&storeSnapshot{})
+	return s
 }
 
 // Load reads the JSONL file at path and atomically replaces the store contents.
@@ -32,9 +42,9 @@ func (s *Store) Load(path string) error {
 // Reload reads from the store's configured JSONL path and atomically replaces
 // the store contents.
 func (s *Store) Reload() error {
-	s.mu.RLock()
+	s.mu.Lock()
 	path := s.path
-	s.mu.RUnlock()
+	s.mu.Unlock()
 	if path == "" {
 		return errors.New("jsonl path is not configured")
 	}
@@ -44,36 +54,53 @@ func (s *Store) Reload() error {
 		return err
 	}
 
-	s.mu.Lock()
-	s.entries = entries
-	s.lastLoaded = time.Now()
-	s.mu.Unlock()
+	s.snap.Store(&storeSnapshot{
+		entries:    entries,
+		lastLoaded: time.Now(),
+	})
 
-	log.Printf("Store: loaded %d entries from %s", len(entries), path)
+	slog.Info("store loaded", "entries", len(entries), "path", path)
 	return nil
 }
 
-// Entries returns a shallow copy of all entries. Callers must not mutate the slice.
-func (s *Store) Entries() []TimeEntry {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	out := make([]TimeEntry, len(s.entries))
-	copy(out, s.entries)
-	return out
+// EntriesInRange returns entries whose Date falls within [from, to] inclusive.
+// For the in-memory store this filters the snapshot; for PostgreSQL this would
+// become a WHERE clause.
+func (s *Store) EntriesInRange(from, to string) ([]TimeEntry, error) {
+	return filterByRange(s.snap.Load().entries, from, to), nil
 }
 
 // Count returns the current number of loaded entries.
 func (s *Store) Count() int {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return len(s.entries)
+	return len(s.snap.Load().entries)
+}
+
+// AddEntries appends entries to the current snapshot atomically. This enables
+// ingestion via push API or file import without a full reload.
+func (s *Store) AddEntries(entries []TimeEntry) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	current := s.snap.Load()
+	merged := make([]TimeEntry, len(current.entries), len(current.entries)+len(entries))
+	copy(merged, current.entries)
+	merged = append(merged, entries...)
+
+	s.snap.Store(&storeSnapshot{
+		entries:    merged,
+		lastLoaded: time.Now(),
+	})
+	return nil
+}
+
+// Close releases resources. The in-memory store has nothing to close.
+func (s *Store) Close() error {
+	return nil
 }
 
 // LastLoaded returns the time of the most recent successful load.
 func (s *Store) LastLoaded() time.Time {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.lastLoaded
+	return s.snap.Load().lastLoaded
 }
 
 // StartPoller launches a background goroutine that reloads the JSONL file
@@ -92,7 +119,7 @@ func (s *Store) StartPoller(ctx context.Context, interval time.Duration) {
 				return
 			case <-ticker.C:
 				if err := s.Reload(); err != nil {
-					log.Printf("Store poller: reload failed: %v", err)
+					slog.Error("store poller reload failed", "error", err)
 				}
 			}
 		}

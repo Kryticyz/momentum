@@ -1,7 +1,12 @@
 **/node_modules/
-**/.DS_Store
 **/.vite/
 **/dist/
+**/.DS_Store
+.git
+.claude
+.env
+*.md
+!docs/openapi-dashboard-backend.yaml
 services/dashboard-backend/momentum-dashboard
 services/dashboard-backend/*.exe
-.env
+services/dashboard-backend/config.json

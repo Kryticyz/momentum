@@ -7,6 +7,9 @@ echo "==> Installing frontend dependencies..."
 cd "$REPO_ROOT/apps/dashboard-frontend"
 bun install --frozen-lockfile
 
+echo "==> Generating TypeScript types from OpenAPI spec..."
+bun run generate:types
+
 echo "==> Building frontend (TypeScript + Vite)..."
 bun run build
 

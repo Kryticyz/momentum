@@ -1,21 +1,26 @@
-export interface ProjectStat {
-  project: string;
-  minutes: number;
-  hours: number;
-}
+/**
+ * Re-export API types generated from the OpenAPI spec.
+ *
+ * The generated file is the single source of truth for API shapes.
+ * Run `bun run generate:types` to regenerate after spec changes.
+ */
+export type { components } from "./generated/api-types";
 
-export interface DayStat {
-  date: string;
-  minutes: number;
-  hours: number;
-}
+import type { components } from "./generated/api-types";
 
-export interface WeekStat {
-  weekStart: string;
-  minutes: number;
-  hours: number;
-}
+// Convenience aliases used throughout the frontend.
+export type ProjectStat = components["schemas"]["ProjectStat"];
+export type DayStat = components["schemas"]["DayStat"];
+export type WeekStat = components["schemas"]["WeekStat"];
+export type TimeEntry = components["schemas"]["TimeEntry"];
+export type ResponseMeta = components["schemas"]["ResponseMeta"];
 
+/** Typed envelope derived from the generated APIEnvelope schema. */
+export type ApiResponse<T> = Omit<components["schemas"]["APIEnvelope"], "data"> & {
+  data: T;
+};
+
+/** Frontend-only type for date range filter state. */
 export interface DateRange {
   from: string;
   to: string;

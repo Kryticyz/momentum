@@ -16,24 +16,24 @@ describe("api client", () => {
   it("uses versioned endpoint for projects", async () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockResolvedValueOnce(
-      new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } })
+      new Response(JSON.stringify({ data: [], meta: null }), { status: 200, headers: { "Content-Type": "application/json" } })
     );
 
     await fetchProjects(range);
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/projects?from=2026-02-01&to=2026-02-28",
-      { signal: undefined }
+      { signal: undefined, headers: {} }
     );
   });
 
   it("uses versioned endpoints for days and weeks", async () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockResolvedValueOnce(
-      new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } })
+      new Response(JSON.stringify({ data: [], meta: null }), { status: 200, headers: { "Content-Type": "application/json" } })
     );
     fetchMock.mockResolvedValueOnce(
-      new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } })
+      new Response(JSON.stringify({ data: [], meta: null }), { status: 200, headers: { "Content-Type": "application/json" } })
     );
 
     await fetchDays(range);
@@ -42,19 +42,19 @@ describe("api client", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
       "/api/v1/days?from=2026-02-01&to=2026-02-28",
-      { signal: undefined }
+      { signal: undefined, headers: {} }
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       "/api/v1/weeks?from=2026-02-01&to=2026-02-28",
-      { signal: undefined }
+      { signal: undefined, headers: {} }
     );
   });
 
   it("passes abort signal to fetch when provided", async () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockResolvedValueOnce(
-      new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } })
+      new Response(JSON.stringify({ data: [], meta: null }), { status: 200, headers: { "Content-Type": "application/json" } })
     );
 
     const controller = new AbortController();
@@ -62,7 +62,7 @@ describe("api client", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/projects?from=2026-02-01&to=2026-02-28",
-      { signal: controller.signal }
+      { signal: controller.signal, headers: {} }
     );
   });
 
@@ -72,6 +72,6 @@ describe("api client", () => {
 
     await postRefresh();
 
-    expect(fetchMock).toHaveBeenCalledWith("/refresh", { method: "POST" });
+    expect(fetchMock).toHaveBeenCalledWith("/refresh", { method: "POST", headers: {} });
   });
 });

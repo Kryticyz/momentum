@@ -1,11 +1,15 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
+	"log/slog"
 	"net/http"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const apiV1Prefix = "/api/v1"
@@ -39,8 +43,8 @@ func corsMiddleware(next http.Handler, allowedOrigins []string) http.Handler {
 				http.Error(w, "origin not allowed", http.StatusForbidden)
 				return
 			}
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
@@ -68,13 +72,32 @@ func newMux(h *Handlers, cfg Config) http.Handler {
 	mux := http.NewServeMux()
 
 	if cfg.ServeAPI {
+		// Core endpoints.
 		mux.HandleFunc("/health", h.Health)
 		mux.HandleFunc("/refresh", h.Refresh)
+
+		// Entry CRUD + ingestion.
 		mux.HandleFunc(apiV1Prefix+"/entries", h.Entries)
+		mux.HandleFunc(apiV1Prefix+"/entries/", h.EntryByID) // PATCH + DELETE /{id}
+		mux.HandleFunc(apiV1Prefix+"/import", h.Import)
+
+		// Aggregate read endpoints.
 		mux.HandleFunc(apiV1Prefix+"/projects", h.Projects)
 		mux.HandleFunc(apiV1Prefix+"/days", h.Days)
 		mux.HandleFunc(apiV1Prefix+"/weeks", h.Weeks)
 		mux.HandleFunc(apiV1Prefix+"/planned-vs-actual", h.PlannedVsActual)
+
+		// Timer endpoints.
+		mux.HandleFunc(apiV1Prefix+"/timer/active", h.TimerActive)
+		mux.HandleFunc(apiV1Prefix+"/timer/start", h.TimerStart)
+		mux.HandleFunc(apiV1Prefix+"/timer/stop", h.TimerStop)
+
+		// Sync / change feed.
+		mux.HandleFunc(apiV1Prefix+"/sync/changes", h.SyncChanges)
+
+		// Project preferences.
+		mux.HandleFunc(apiV1Prefix+"/preferences/projects", h.ProjectPreferences)
+		mux.HandleFunc(apiV1Prefix+"/preferences/projects/", h.ProjectPreferenceByName)
 
 		// Keep unknown API paths out of the SPA fallback.
 		mux.HandleFunc("/api/", apiNotFound)
@@ -88,8 +111,79 @@ func newMux(h *Handlers, cfg Config) http.Handler {
 	return mux
 }
 
+// requestLogger wraps a handler to log each request with method, path, status,
+// duration, User-Agent, and request ID.
+func requestLogger(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(sw, r)
+		slog.Info("http request",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", sw.status,
+			"duration_ms", time.Since(start).Milliseconds(),
+			"user_agent", r.UserAgent(),
+			"request_id", r.Header.Get("X-Request-Id"),
+		)
+	})
+}
+
+// requestIDMiddleware generates or forwards X-Request-Id on every request.
+// The ID is echoed in both the request (for downstream) and the response header.
+func requestIDMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := r.Header.Get("X-Request-Id")
+		if id == "" {
+			id = generateRequestID()
+			r.Header.Set("X-Request-Id", id)
+		}
+		w.Header().Set("X-Request-Id", id)
+		next.ServeHTTP(w, r)
+	})
+}
+
+func generateRequestID() string {
+	b := make([]byte, 8)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+// statusWriter wraps http.ResponseWriter to capture the status code.
+type statusWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (w *statusWriter) WriteHeader(code int) {
+	w.status = code
+	w.ResponseWriter.WriteHeader(code)
+}
+
+// httpsEnforcer rejects plaintext HTTP requests when production_mode is enabled
+// and allow_insecure_http is not set. /health is always allowed so load-balancer
+// probes continue working regardless of transport.
+func httpsEnforcer(next http.Handler, cfg Config) http.Handler {
+	if !cfg.ProductionMode || cfg.AllowInsecureHTTP {
+		return next // enforcement disabled
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Always allow plaintext health checks (orchestrator/LB probes).
+		if r.URL.Path == "/health" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		proto := r.Header.Get("X-Forwarded-Proto")
+		if proto != "" && proto != "https" {
+			writeError(w, http.StatusForbidden, "HTTPS required in production mode")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func apiNotFound(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+	writeError(w, http.StatusNotFound, "not found")
 }
 
 // spaHandler serves static files and falls back to index.html for unknown

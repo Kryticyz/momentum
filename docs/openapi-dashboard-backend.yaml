@@ -1,27 +1,49 @@
 openapi: 3.0.3
 info:
   title: Momentum Dashboard Backend API
-  version: 1.0.0
-  description: API contract for the local momentum dashboard backend.
+  version: 3.0.0
+  description: |
+    API contract for the momentum dashboard backend.
+    v3 adds entry identity/lifecycle, global timer, offline sync,
+    project preferences, authMode/backendVersion in health, X-Request-Id,
+    and production HTTPS enforcement seams.
 servers:
   - url: http://localhost:8080
 tags:
   - name: Health
   - name: Refresh
   - name: Entries
+  - name: Ingestion
   - name: Aggregates
+  - name: Timer
+  - name: Sync
+  - name: Preferences
+security:
+  - BearerAuth: []
 paths:
   /health:
     get:
       tags: [Health]
-      summary: Service health and store metadata
+      summary: Service health, store metadata, auth mode, and backend version
+      security: []
       responses:
         '200':
           description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HealthResponse'
+                allOf:
+                  - $ref: '#/components/schemas/APIEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/HealthData'
+        '405':
+          description: Method not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /refresh:
     post:
       tags: [Refresh]
@@ -32,7 +54,18 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RefreshResponse'
+                allOf:
+                  - $ref: '#/components/schemas/APIEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/RefreshData'
+        '405':
+          description: Method not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Refresh failed
           content:
@@ -46,17 +79,182 @@ paths:
       parameters:
         - $ref: '#/components/parameters/From'
         - $ref: '#/components/parameters/To'
+        - name: includeDeleted
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Include soft-deleted entries. PostgreSQL mode only; returns 501 in in-memory mode.
       responses:
         '200':
           description: Raw entries
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/TimeEntry'
+                allOf:
+                  - $ref: '#/components/schemas/APIEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/TimeEntry'
         '400':
           description: Invalid date range
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '501':
+          description: Feature requires PostgreSQL mode
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      tags: [Ingestion]
+      summary: Push entries via JSON array
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/TimeEntry'
+      responses:
+        '201':
+          description: Entries accepted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PushResult'
+        '400':
+          description: Invalid body or validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/entries/{id}:
+    patch:
+      tags: [Entries]
+      summary: Partial update of a single entry (PostgreSQL mode only)
+      description: |
+        Updates mutable fields on a non-deleted entry. Enforces the 30-day
+        mutation window — entries older than 30 days return 422.
+        Requires PostgreSQL mode; returns 501 in in-memory mode.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EntryPatch'
+      responses:
+        '200':
+          description: Updated entry
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TimeEntry'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Edit window exceeded or entry not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyErrorResponse'
+        '501':
+          description: Feature requires PostgreSQL mode
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      tags: [Entries]
+      summary: Soft-delete a single entry (PostgreSQL mode only)
+      description: |
+        Sets deleted_at on the entry. Enforces 30-day mutation window.
+        Requires PostgreSQL mode; returns 501 in in-memory mode.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Entry soft-deleted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          deleted:
+                            type: boolean
+                          id:
+                            type: string
+                            format: uuid
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Edit window exceeded or entry not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PolicyErrorResponse'
+        '501':
+          description: Feature requires PostgreSQL mode
           content:
             application/json:
               schema:
@@ -64,7 +262,7 @@ paths:
   /api/v1/projects:
     get:
       tags: [Aggregates]
-      summary: Project totals in range
+      summary: Project totals in range (excludes soft-deleted entries)
       parameters:
         - $ref: '#/components/parameters/From'
         - $ref: '#/components/parameters/To'
@@ -74,11 +272,22 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ProjectStat'
+                allOf:
+                  - $ref: '#/components/schemas/APIEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ProjectStat'
         '400':
           description: Invalid date range
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed
           content:
             application/json:
               schema:
@@ -86,7 +295,7 @@ paths:
   /api/v1/days:
     get:
       tags: [Aggregates]
-      summary: Daily totals (zero-filled)
+      summary: Daily totals (zero-filled, excludes soft-deleted entries)
       parameters:
         - $ref: '#/components/parameters/From'
         - $ref: '#/components/parameters/To'
@@ -96,11 +305,22 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/DayStat'
+                allOf:
+                  - $ref: '#/components/schemas/APIEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/DayStat'
         '400':
           description: Invalid date range
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed
           content:
             application/json:
               schema:
@@ -108,7 +328,7 @@ paths:
   /api/v1/weeks:
     get:
       tags: [Aggregates]
-      summary: Weekly totals
+      summary: Weekly totals (Sunday-start, excludes soft-deleted entries)
       parameters:
         - $ref: '#/components/parameters/From'
         - $ref: '#/components/parameters/To'
@@ -118,11 +338,63 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/WeekStat'
+                allOf:
+                  - $ref: '#/components/schemas/APIEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/WeekStat'
         '400':
           description: Invalid date range
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/import:
+    post:
+      tags: [Ingestion]
+      summary: Import entries via JSONL body
+      requestBody:
+        required: true
+        content:
+          text/plain:
+            schema:
+              type: string
+              description: JSONL text — one TimeEntry JSON object per line.
+      responses:
+        '201':
+          description: Entries imported
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ImportResult'
+        '400':
+          description: Invalid JSONL body or empty
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed
           content:
             application/json:
               schema:
@@ -141,7 +413,307 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/timer/active:
+    get:
+      tags: [Timer]
+      summary: Get the current active timer session (PostgreSQL mode only)
+      description: Returns the active timer or null data when no timer is running.
+      responses:
+        '200':
+          description: Active timer or null
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    oneOf:
+                      - $ref: '#/components/schemas/TimerSession'
+                      - type: 'null'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '501':
+          description: Feature requires PostgreSQL mode
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/timer/start:
+    post:
+      tags: [Timer]
+      summary: Start a new timer session (PostgreSQL mode only)
+      description: |
+        Creates a new active timer. Returns 409 if a timer is already active.
+        Supply clientMutationId for idempotent offline replay.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TimerStartRequest'
+      responses:
+        '201':
+          description: Timer started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/TimerSession'
+        '400':
+          description: Missing required field
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Timer already active
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimerConflictResponse'
+        '501':
+          description: Feature requires PostgreSQL mode
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/timer/stop:
+    post:
+      tags: [Timer]
+      summary: Stop the active timer and materialise a TimeEntry (PostgreSQL mode only)
+      description: |
+        Stops the current active session and creates a TimeEntry record.
+        Returns 409 if no timer is active.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TimerStopRequest'
+      responses:
+        '200':
+          description: Timer stopped and entry created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      session:
+                        $ref: '#/components/schemas/TimerSession'
+                      entry:
+                        $ref: '#/components/schemas/TimeEntry'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: No active timer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimerConflictResponse'
+        '501':
+          description: Feature requires PostgreSQL mode
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/sync/changes:
+    get:
+      tags: [Sync]
+      summary: Incremental change feed for offline sync (PostgreSQL mode only)
+      description: |
+        Returns entries (including soft-deleted) updated after the since cursor,
+        ordered by updatedAt ASC. Use meta.nextSince as the next cursor.
+      parameters:
+        - name: since
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: RFC3339 cursor. Returns all changes when omitted.
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 200
+            minimum: 1
+            maximum: 1000
+      responses:
+        '200':
+          description: Changed entries with next cursor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncChangesResponse'
+        '400':
+          description: Invalid since parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '501':
+          description: Feature requires PostgreSQL mode
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/preferences/projects:
+    get:
+      tags: [Preferences]
+      summary: List all project color preferences (PostgreSQL mode only)
+      responses:
+        '200':
+          description: Project preferences
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ProjectPreference'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '501':
+          description: Feature requires PostgreSQL mode
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/preferences/projects/{project}:
+    put:
+      tags: [Preferences]
+      summary: Set color for a project (PostgreSQL mode only)
+      parameters:
+        - name: project
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [colorHex]
+              properties:
+                colorHex:
+                  type: string
+                  pattern: '^#[0-9A-Fa-f]{6}$'
+                  example: '#3A7AFE'
+      responses:
+        '200':
+          description: Preference saved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          project:
+                            type: string
+                          colorHex:
+                            type: string
+        '400':
+          description: Invalid colorHex
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '501':
+          description: Feature requires PostgreSQL mode
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      tags: [Preferences]
+      summary: Remove color preference for a project (PostgreSQL mode only)
+      parameters:
+        - name: project
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Preference deleted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          deleted:
+                            type: boolean
+                          project:
+                            type: string
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '501':
+          description: Feature requires PostgreSQL mode
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: API key passed as Bearer token. Empty key disables auth.
   parameters:
     From:
       name: from
@@ -160,9 +732,29 @@ components:
         pattern: '^\d{4}-\d{2}-\d{2}$'
       description: End date in YYYY-MM-DD format.
   schemas:
-    HealthResponse:
+    ResponseMeta:
       type: object
-      required: [status, entries, lastLoaded]
+      required: [count, lastLoaded]
+      properties:
+        count:
+          type: integer
+          description: Number of items in the data payload.
+          example: 142
+        lastLoaded:
+          type: string
+          description: RFC 3339 timestamp of most recent data reload, or empty string when never loaded.
+          example: '2026-02-19T10:00:00+11:00'
+    APIEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data: {}
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+      description: Standard response envelope. All successful responses use this shape.
+    HealthData:
+      type: object
+      required: [status, entries, listenAddress, database, authMode, backendVersion]
       properties:
         status:
           type: string
@@ -170,11 +762,24 @@ components:
         entries:
           type: integer
           example: 142
-        lastLoaded:
+        listenAddress:
           type: string
-          description: RFC3339 timestamp, or empty string when never loaded.
-          example: '2026-02-17T19:52:49+11:00'
-    RefreshResponse:
+          example: ':8080'
+        database:
+          type: string
+          description: Database connectivity status.
+          enum: [ok, unreachable, n/a]
+          example: ok
+        authMode:
+          type: string
+          description: Active authentication mode.
+          enum: [none, api-key, dual, oauth]
+          example: api-key
+        backendVersion:
+          type: string
+          description: Backend build version. "dev" when not set at build time.
+          example: '3.0.0'
+    RefreshData:
       type: object
       required: [ok, entries]
       properties:
@@ -190,6 +795,17 @@ components:
       properties:
         error:
           type: string
+    PolicyErrorResponse:
+      type: object
+      required: [error, code]
+      properties:
+        error:
+          type: string
+          example: edit window exceeded
+        code:
+          type: string
+          enum: [edit_window_exceeded]
+          example: edit_window_exceeded
     TimeEntry:
       type: object
       required:
@@ -203,6 +819,28 @@ components:
         - note
         - lineNumber
       properties:
+        id:
+          type: string
+          format: uuid
+          description: Stable server-assigned UUID. Present in PostgreSQL mode.
+          example: '550e8400-e29b-41d4-a716-446655440000'
+        userId:
+          type: string
+          description: User identity. Default "local-user" in single-user mode.
+          example: local-user
+        createdAt:
+          type: string
+          format: date-time
+          description: RFC3339 timestamp when the entry was first created.
+        updatedAt:
+          type: string
+          format: date-time
+          description: RFC3339 timestamp of the last mutation.
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: RFC3339 soft-delete timestamp, or null when not deleted.
         source:
           type: string
           example: daily-note
@@ -231,6 +869,132 @@ components:
         lineNumber:
           type: integer
           example: 42
+        tags:
+          type: array
+          items:
+            type: string
+          description: Optional tags. Reserved for future Obsidian tag sync.
+    EntryPatch:
+      type: object
+      description: Partial update for a TimeEntry. Only provided fields are applied.
+      properties:
+        project:
+          type: string
+        start:
+          type: string
+        end:
+          type: string
+        minutes:
+          type: integer
+          minimum: 1
+        note:
+          type: string
+    TimerSession:
+      type: object
+      required: [id, userId, project, note, startedAt, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+        project:
+          type: string
+        note:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        stoppedAt:
+          type: string
+          format: date-time
+          description: Empty string when timer is still running.
+        sourceDeviceId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    TimerStartRequest:
+      type: object
+      required: [project]
+      properties:
+        project:
+          type: string
+          example: Project A
+        note:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+          description: Client-provided start time. Defaults to server time when omitted.
+        sourceDeviceId:
+          type: string
+          description: Optional device identifier for multi-device correlation.
+        clientMutationId:
+          type: string
+          format: uuid
+          description: Idempotency key for offline replay.
+    TimerStopRequest:
+      type: object
+      properties:
+        stoppedAt:
+          type: string
+          format: date-time
+          description: Client-provided stop time. Defaults to server time when omitted.
+        note:
+          type: string
+          description: Override or append to the timer session note.
+        clientMutationId:
+          type: string
+          format: uuid
+          description: Idempotency key for offline replay.
+    TimerConflictResponse:
+      type: object
+      required: [error, code]
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+          enum: [timer_already_active, timer_not_active]
+        session:
+          $ref: '#/components/schemas/TimerSession'
+          description: Included in the already_active case.
+    SyncChangesResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeEntry'
+        meta:
+          type: object
+          required: [count, nextSince]
+          properties:
+            count:
+              type: integer
+            nextSince:
+              type: string
+              format: date-time
+              description: Use as the next since parameter to fetch only newer changes.
+    ProjectPreference:
+      type: object
+      required: [project, colorHex, updatedAt]
+      properties:
+        project:
+          type: string
+          example: Project A
+        colorHex:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+          example: '#3A7AFE'
+        updatedAt:
+          type: string
+          format: date-time
     ProjectStat:
       type: object
       required: [project, minutes, hours]
@@ -275,3 +1039,19 @@ components:
           type: number
           format: double
           example: 10.67
+    PushResult:
+      type: object
+      required: [accepted]
+      properties:
+        accepted:
+          type: integer
+          description: Number of entries accepted.
+          example: 5
+    ImportResult:
+      type: object
+      required: [imported]
+      properties:
+        imported:
+          type: integer
+          description: Number of entries imported.
+          example: 10

@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "generate:types": "openapi-typescript ../../docs/openapi-dashboard-backend.yaml -o src/generated/api-types.ts"
   },
   "dependencies": {
     "react": "^18.3.1",
@@ -21,6 +22,7 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "jsdom": "^25.0.1",
+    "openapi-typescript": "^7.13.0",
     "typescript": "^5.6.3",
     "vite": "^6.0.5",
     "vitest": "^2.1.8"
