@@ -240,6 +240,8 @@ func routeHandler(h *Handlers, urlPath string) http.HandlerFunc {
 		return h.Weeks
 	case strings.HasPrefix(urlPath, "/api/v1/planned-vs-actual"):
 		return h.PlannedVsActual
+	case strings.HasPrefix(urlPath, "/api/v1/import"):
+		return h.Import
 	case strings.HasPrefix(urlPath, "/health"):
 		return h.Health
 	case strings.HasPrefix(urlPath, "/refresh"):

@@ -77,6 +77,7 @@ func newMux(h *Handlers, cfg Config) http.Handler {
 		mux.HandleFunc(apiV1Prefix+"/days", h.Days)
 		mux.HandleFunc(apiV1Prefix+"/weeks", h.Weeks)
 		mux.HandleFunc(apiV1Prefix+"/planned-vs-actual", h.PlannedVsActual)
+		mux.HandleFunc(apiV1Prefix+"/import", h.Import)
 
 		// Keep unknown API paths out of the SPA fallback.
 		mux.HandleFunc("/api/", apiNotFound)

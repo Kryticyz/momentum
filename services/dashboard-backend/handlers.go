@@ -134,9 +134,100 @@ func (h *Handlers) Refresh(w http.ResponseWriter, r *http.Request) {
 	}, h.store.Count())
 }
 
-// Entries handles GET /api/v1/entries — returns raw filtered entries.
+// Entries handles /api/v1/entries:
+//   - GET returns raw filtered entries
+//   - POST accepts a JSON array of entries to push into the store
 func (h *Handlers) Entries(w http.ResponseWriter, r *http.Request) {
-	h.dataHandler(entriesTransform)(w, r)
+	switch r.Method {
+	case http.MethodGet:
+		h.dataHandler(entriesTransform)(w, r)
+	case http.MethodPost:
+		h.pushEntries(w, r)
+	default:
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{
+			"error": "method not allowed",
+		})
+	}
+}
+
+// pushEntries handles POST /api/v1/entries — accepts a JSON array of entries.
+func (h *Handlers) pushEntries(w http.ResponseWriter, r *http.Request) {
+	var entries []TimeEntry
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 10<<20)).Decode(&entries); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": fmt.Sprintf("invalid JSON body: %v", err),
+		})
+		return
+	}
+	if len(entries) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": "empty entries array",
+		})
+		return
+	}
+	if errMsg := validateEntries(entries); errMsg != "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": errMsg})
+		return
+	}
+	if err := h.store.AddEntries(entries); err != nil {
+		log.Printf("pushEntries: %v", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{
+			"error": "failed to store entries",
+		})
+		return
+	}
+	h.writeData(w, http.StatusCreated, map[string]any{
+		"accepted": len(entries),
+	}, len(entries))
+}
+
+// Import handles POST /api/v1/import — accepts a JSONL body of entries.
+func (h *Handlers) Import(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodPost) {
+		return
+	}
+	entries, err := parseJSONLBody(http.MaxBytesReader(w, r.Body, 50<<20))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": fmt.Sprintf("invalid JSONL body: %v", err),
+		})
+		return
+	}
+	if len(entries) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": "no valid entries in body",
+		})
+		return
+	}
+	if err := h.store.AddEntries(entries); err != nil {
+		log.Printf("Import: %v", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{
+			"error": "failed to store entries",
+		})
+		return
+	}
+	h.writeData(w, http.StatusCreated, map[string]any{
+		"imported": len(entries),
+	}, len(entries))
+}
+
+// validateEntries checks that each entry has the minimum required fields.
+func validateEntries(entries []TimeEntry) string {
+	for i, e := range entries {
+		if e.Date == "" {
+			return fmt.Sprintf("entry[%d]: missing date", i)
+		}
+		if !isoDateRe.MatchString(e.Date) {
+			return fmt.Sprintf("entry[%d]: invalid date %q", i, e.Date)
+		}
+		if e.Project == "" {
+			return fmt.Sprintf("entry[%d]: missing project", i)
+		}
+		if e.Minutes <= 0 {
+			return fmt.Sprintf("entry[%d]: minutes must be > 0", i)
+		}
+	}
+	return ""
 }
 
 // Projects handles GET /api/v1/projects.

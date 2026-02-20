@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"os"
 )
@@ -59,5 +60,31 @@ func loadJSONL(path string) ([]TimeEntry, error) {
 		return nil, fmt.Errorf("scan %s: %w", path, err)
 	}
 
+	return entries, nil
+}
+
+// parseJSONLBody reads JSONL from a reader (e.g., request body). Unlike loadJSONL,
+// this is strict — malformed lines return an error instead of being skipped.
+func parseJSONLBody(r io.Reader) ([]TimeEntry, error) {
+	scanner := bufio.NewScanner(r)
+	scanner.Buffer(make([]byte, 1<<20), 1<<20)
+
+	var entries []TimeEntry
+	lineNum := 0
+	for scanner.Scan() {
+		lineNum++
+		line := scanner.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+		var e TimeEntry
+		if err := json.Unmarshal(line, &e); err != nil {
+			return nil, fmt.Errorf("line %d: %w", lineNum, err)
+		}
+		entries = append(entries, e)
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("reading body: %w", err)
+	}
 	return entries, nil
 }

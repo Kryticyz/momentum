@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -253,6 +254,146 @@ func TestEntries_ReturnsRawEntries(t *testing.T) {
 	entries := envelopeData[[]TimeEntry](t, rr)
 	if len(entries) != 2 {
 		t.Errorf("expected 2 entries, got %d", len(entries))
+	}
+}
+
+// --- POST /api/v1/entries (push) ---
+
+func TestPushEntries_AcceptsValidJSON(t *testing.T) {
+	h := newTestHandlers(t, nil)
+	body := `[{"source":"api","filePath":"test.md","date":"2026-02-12","project":"Alpha","start":"09:00","end":"10:00","minutes":60,"note":"","lineNumber":1}]`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/entries", strings.NewReader(body))
+	rr := httptest.NewRecorder()
+	h.Entries(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d body=%s", rr.Code, rr.Body)
+	}
+	data := envelopeData[map[string]any](t, rr)
+	if data["accepted"] != float64(1) {
+		t.Errorf("expected accepted=1, got %v", data["accepted"])
+	}
+}
+
+func TestPushEntries_RejectsEmpty(t *testing.T) {
+	h := newTestHandlers(t, nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/entries", strings.NewReader("[]"))
+	rr := httptest.NewRecorder()
+	h.Entries(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestPushEntries_ValidatesFields(t *testing.T) {
+	h := newTestHandlers(t, nil)
+	// Missing project.
+	body := `[{"date":"2026-02-12","project":"","minutes":60}]`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/entries", strings.NewReader(body))
+	rr := httptest.NewRecorder()
+	h.Entries(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestPushEntries_ValidatesMinutes(t *testing.T) {
+	h := newTestHandlers(t, nil)
+	body := `[{"date":"2026-02-12","project":"A","minutes":0}]`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/entries", strings.NewReader(body))
+	rr := httptest.NewRecorder()
+	h.Entries(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d body=%s", rr.Code, rr.Body)
+	}
+}
+
+func TestPushEntries_Queryable(t *testing.T) {
+	h := newTestHandlers(t, nil)
+
+	// Push an entry.
+	body := `[{"source":"api","filePath":"test.md","date":"2026-02-12","project":"Alpha","start":"09:00","end":"10:00","minutes":60,"note":"","lineNumber":1}]`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/entries", strings.NewReader(body))
+	rr := httptest.NewRecorder()
+	h.Entries(rr, req)
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("push failed: %d body=%s", rr.Code, rr.Body)
+	}
+
+	// Query it back.
+	rr2 := get(t, h.Entries, "/api/v1/entries?from=2026-02-12&to=2026-02-12")
+	if rr2.Code != http.StatusOK {
+		t.Fatalf("get failed: %d", rr2.Code)
+	}
+	entries := envelopeData[[]TimeEntry](t, rr2)
+	if len(entries) != 1 {
+		t.Errorf("expected 1 entry, got %d", len(entries))
+	}
+}
+
+func TestEntries_MethodNotAllowed(t *testing.T) {
+	h := newTestHandlers(t, nil)
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/entries", nil)
+	rr := httptest.NewRecorder()
+	h.Entries(rr, req)
+	if rr.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected 405, got %d", rr.Code)
+	}
+}
+
+// --- POST /api/v1/import ---
+
+func TestImport_AcceptsJSONL(t *testing.T) {
+	h := newTestHandlers(t, nil)
+	body := `{"source":"daily-note","filePath":"2026-02-12.md","date":"2026-02-12","project":"A","start":"09:00","end":"10:00","minutes":60,"note":"","lineNumber":1}
+{"source":"daily-note","filePath":"2026-02-13.md","date":"2026-02-13","project":"B","start":"10:00","end":"11:00","minutes":60,"note":"","lineNumber":1}
+`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/import", strings.NewReader(body))
+	rr := httptest.NewRecorder()
+	h.Import(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d body=%s", rr.Code, rr.Body)
+	}
+	data := envelopeData[map[string]any](t, rr)
+	if data["imported"] != float64(2) {
+		t.Errorf("expected imported=2, got %v", data["imported"])
+	}
+}
+
+func TestImport_RejectsMalformed(t *testing.T) {
+	h := newTestHandlers(t, nil)
+	body := `{"date":"2026-02-12","project":"A","minutes":60}
+not valid json
+`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/import", strings.NewReader(body))
+	rr := httptest.NewRecorder()
+	h.Import(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
+	}
+}
+
+func TestImport_MethodNotAllowed(t *testing.T) {
+	h := newTestHandlers(t, nil)
+	rr := get(t, h.Import, "/api/v1/import")
+	if rr.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected 405, got %d", rr.Code)
+	}
+}
+
+func TestImport_RejectsEmpty(t *testing.T) {
+	h := newTestHandlers(t, nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/import", strings.NewReader(""))
+	rr := httptest.NewRecorder()
+	h.Import(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rr.Code)
 	}
 }
 
