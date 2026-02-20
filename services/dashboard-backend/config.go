@@ -12,6 +12,7 @@ import (
 type Config struct {
 	JSONLPath          string   `json:"jsonl_path"`
 	DatabaseURL        string   `json:"database_url"`
+	APIKey             string   `json:"api_key"`
 	Port               int      `json:"port"`
 	BindAddress        string   `json:"bind_address"`
 	Timezone           string   `json:"timezone"`
@@ -53,6 +54,7 @@ func loadConfig() Config {
 	configPath := flag.String("config", "config.json", "path to config JSON file")
 	jsonlFlag := flag.String("jsonl", "", "path to JSONL export file")
 	databaseURLFlag := flag.String("database-url", "", "PostgreSQL connection URL")
+	apiKeyFlag := flag.String("api-key", "", "API key for Bearer token authentication (empty disables auth)")
 	migrateFlag := flag.Bool("migrate", false, "run schema migration (and optional JSONL import) then exit")
 	portFlag := flag.Int("port", 0, "HTTP port")
 	bindFlag := flag.String("bind", "", "bind address (e.g. 0.0.0.0, 127.0.0.1)")
@@ -82,6 +84,9 @@ func loadConfig() Config {
 	}
 	if *databaseURLFlag != "" {
 		cfg.DatabaseURL = *databaseURLFlag
+	}
+	if *apiKeyFlag != "" {
+		cfg.APIKey = *apiKeyFlag
 	}
 	cfg.Migrate = *migrateFlag
 	if *portFlag != 0 {

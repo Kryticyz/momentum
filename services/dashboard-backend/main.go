@@ -60,7 +60,7 @@ func main() {
 
 	h := &Handlers{store: store, config: cfg}
 	mux := newMux(h, cfg)
-	handler := requestLogger(corsMiddleware(mux, cfg.CORSAllowedOrigins))
+	handler := requestLogger(authMiddleware(corsMiddleware(mux, cfg.CORSAllowedOrigins), cfg.APIKey))
 
 	addr := fmt.Sprintf("%s:%d", cfg.BindAddress, cfg.Port)
 	log.Printf("Listening on %s", addr)
