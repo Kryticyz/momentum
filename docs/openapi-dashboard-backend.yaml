@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Momentum Dashboard Backend API
-  version: 2.0.0
+  version: 2.1.0
   description: API contract for the momentum dashboard backend.
 servers:
   - url: http://localhost:8080
@@ -9,12 +9,16 @@ tags:
   - name: Health
   - name: Refresh
   - name: Entries
+  - name: Ingestion
   - name: Aggregates
+security:
+  - BearerAuth: []
 paths:
   /health:
     get:
       tags: [Health]
       summary: Service health and store metadata
+      security: []
       responses:
         '200':
           description: OK
@@ -88,8 +92,43 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-        '405':
-          description: Method not allowed
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      tags: [Ingestion]
+      summary: Push entries via JSON array
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/TimeEntry'
+      responses:
+        '201':
+          description: Entries accepted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PushResult'
+        '400':
+          description: Invalid body or validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
           content:
             application/json:
               schema:
@@ -193,6 +232,47 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/import:
+    post:
+      tags: [Ingestion]
+      summary: Import entries via JSONL body
+      requestBody:
+        required: true
+        content:
+          text/plain:
+            schema:
+              type: string
+              description: JSONL text — one TimeEntry JSON object per line.
+      responses:
+        '201':
+          description: Entries imported
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/APIEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ImportResult'
+        '400':
+          description: Invalid JSONL body or empty
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '405':
+          description: Method not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/planned-vs-actual:
     get:
       tags: [Aggregates]
@@ -208,6 +288,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: API key passed as Bearer token. Empty key disables auth.
   parameters:
     From:
       name: from
@@ -365,3 +450,19 @@ components:
           type: number
           format: double
           example: 10.67
+    PushResult:
+      type: object
+      required: [accepted]
+      properties:
+        accepted:
+          type: integer
+          description: Number of entries accepted.
+          example: 5
+    ImportResult:
+      type: object
+      required: [imported]
+      properties:
+        imported:
+          type: integer
+          description: Number of entries imported.
+          example: 10

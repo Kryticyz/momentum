@@ -22,9 +22,9 @@ Planned future consumers include native mobile and widget surfaces. To support t
 ## Suggested evolution path
 
 1. Maintain backward-compatible evolution within `/api/v1`; introduce `/api/v2` only for breaking changes.
-2. Add auth and user scoping if cross-device data synchronization is introduced.
-3. Introduce ingestion abstraction to support multiple producers beyond Obsidian exports.
-4. Add contract tests so new consumers can validate API compatibility automatically.
+2. User scoping when cross-device data synchronization is introduced.
+3. Additional producers beyond Obsidian (mobile apps can push via `POST /api/v1/entries`).
+4. Contract tests validate API compatibility automatically (already implemented).
 
 ## Why frontend and backend remain in one repo
 
@@ -34,22 +34,9 @@ Planned future consumers include native mobile and widget surfaces. To support t
 
 When native clients are active and release cadence diverges, splitting by client can be revisited.
 
-## EntryStore interface evolution for PostgreSQL
+## Dual-Store Architecture
 
-The `EntryStore` interface in `services/dashboard-backend/storage.go` is the seam for future database migration.
-
-Current interface:
-
-```go
-type EntryStore interface {
-    Entries() []TimeEntry
-    Count() int
-    LastLoaded() time.Time
-    Reload() error
-}
-```
-
-When PostgreSQL is introduced, the interface evolves to:
+The `EntryStore` interface in `services/dashboard-backend/storage.go` is the abstraction between handlers and storage:
 
 ```go
 type EntryStore interface {
@@ -62,16 +49,32 @@ type EntryStore interface {
 }
 ```
 
-Handlers switch from:
-```go
-entries := filterByRange(h.store.Entries(), from, to)
+Two implementations:
+- **`Store`** (in-memory) — JSONL file backed. `EntriesInRange` calls `filterByRange` on an atomic snapshot. Background poller reloads periodically.
+- **`PgStore`** (PostgreSQL) — `EntriesInRange` uses `WHERE date >= $1 AND date <= $2`. `AddEntries` does batch upsert with `ON CONFLICT`.
+
+Store selection in `main.go`: if `DATABASE_URL` is set, Postgres; otherwise, in-memory JSONL.
+
+The optional `Pinger` interface enables the health endpoint to report database connectivity for `PgStore`.
+
+## Authentication Layer
+
+Bearer token authentication middleware sits between CORS and the router:
+
 ```
-To:
-```go
-entries, err := h.store.EntriesInRange(from, to)
+requestLogger → authMiddleware → corsMiddleware → mux
 ```
 
-The in-memory `Store` implements `EntriesInRange` by calling `filterByRange` internally. The PostgreSQL `PgStore` implements it with a `WHERE` clause. `AddEntries` supports both HTTP push and JSONL import ingestion paths.
+- Empty `API_KEY` → pass-through (no auth, for local/open-source mode)
+- `/health` and `OPTIONS` always bypass auth
+- All other routes require `Authorization: Bearer <key>`
+
+## Ingestion Paths
+
+Data enters the system via three routes:
+1. **JSONL file** — Obsidian plugin exports, backend reads on poll or refresh
+2. **Push API** (`POST /api/v1/entries`) — JSON array of entries, for real-time ingestion
+3. **Import API** (`POST /api/v1/import`) — JSONL body, for bulk file uploads
 
 ## Client type generation from OpenAPI
 

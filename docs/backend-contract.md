@@ -52,15 +52,27 @@ type TimeEntry struct {
 
 ## API (v1)
 
-- `GET /health`
-- `POST /refresh`
-- `GET /api/v1/entries?from=YYYY-MM-DD&to=YYYY-MM-DD`
-- `GET /api/v1/projects?from=YYYY-MM-DD&to=YYYY-MM-DD`
-- `GET /api/v1/days?from=YYYY-MM-DD&to=YYYY-MM-DD`
-- `GET /api/v1/weeks?from=YYYY-MM-DD&to=YYYY-MM-DD`
+- `GET /health` — service health and database connectivity
+- `POST /refresh` — reload data from backing source
+- `GET /api/v1/entries?from=YYYY-MM-DD&to=YYYY-MM-DD` — raw entries
+- `POST /api/v1/entries` — push JSON array of entries
+- `GET /api/v1/projects?from=YYYY-MM-DD&to=YYYY-MM-DD` — project aggregates
+- `GET /api/v1/days?from=YYYY-MM-DD&to=YYYY-MM-DD` — daily aggregates (zero-filled)
+- `GET /api/v1/weeks?from=YYYY-MM-DD&to=YYYY-MM-DD` — weekly aggregates
+- `POST /api/v1/import` — import JSONL body of entries
 - `GET /api/v1/planned-vs-actual?from=YYYY-MM-DD&to=YYYY-MM-DD` (stub)
 
 `from` and `to` default to last 30 days in configured timezone if omitted.
+
+## Authentication
+
+When `API_KEY` is configured, all endpoints except `GET /health` and `OPTIONS` require a Bearer token:
+
+```
+Authorization: Bearer <api-key>
+```
+
+Missing or invalid tokens return `401 Unauthorized`. When `API_KEY` is empty, authentication is disabled (open-source local mode).
 
 ## Response Envelope
 
@@ -96,9 +108,35 @@ Error responses do not use the envelope — they are bare objects.
 {
   "data": {
     "status": "ok",
-    "entries": 142
+    "entries": 142,
+    "database": "ok",
+    "listenAddress": ":8080"
   },
   "meta": { "count": 142, "lastLoaded": "2026-02-19T10:00:00+11:00" }
+}
+```
+
+The `database` field reports: `"ok"` (Postgres connected), `"unreachable"` (Postgres ping failed), or `"n/a"` (in-memory JSONL mode).
+
+### `POST /api/v1/entries`
+
+Request body: JSON array of `TimeEntry` objects. Returns 201:
+
+```json
+{
+  "data": { "accepted": 5 },
+  "meta": { "count": 5, "lastLoaded": "..." }
+}
+```
+
+### `POST /api/v1/import`
+
+Request body: JSONL text (one `TimeEntry` JSON per line). Returns 201:
+
+```json
+{
+  "data": { "imported": 10 },
+  "meta": { "count": 10, "lastLoaded": "..." }
 }
 ```
 
@@ -169,10 +207,24 @@ Current response:
 
 ## Data Consistency Model
 
+### In-Memory (JSONL) Mode
+
 1. **Eventual consistency** — data refreshes on poll interval (`poll_interval_hours`) or manual `POST /refresh`. Clients may see data up to one poll interval old.
 2. **Atomic reloads** — the store replaces all entries atomically. No partial-update state.
 3. **Read isolation** — reads use an atomic pointer to an immutable snapshot. Concurrent reads during a reload see either the old or new data, never a torn read.
-4. **Single writer** — the JSONL file is written by the Obsidian plugin. The backend only reads it.
+4. **Multiple writers** — the JSONL file is written by the Obsidian plugin. Push and import APIs append to the in-memory snapshot.
+
+### PostgreSQL Mode
+
+1. **Immediate consistency** — queries hit Postgres directly. Data is available as soon as `AddEntries` commits.
+2. **Upsert deduplication** — entries are upserted on `(date, file_path, line_number)`. Re-importing the same JSONL file is idempotent.
+3. **Connection pooling** — `pgxpool` manages connections. Health check pings the database.
+
+## Dual Store Architecture
+
+The backend selects its store based on configuration:
+- **`DATABASE_URL` set** → PostgreSQL (`PgStore`). JSONL poller is disabled.
+- **`DATABASE_URL` empty** → In-memory JSONL (`Store`). File polling enabled if `jsonl_path` is configured.
 
 ## Native Client Notes
 

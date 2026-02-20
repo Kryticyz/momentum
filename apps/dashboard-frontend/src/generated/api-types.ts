@@ -149,8 +149,8 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
-                /** @description Method not allowed */
-                405: {
+                /** @description Unauthorized */
+                401: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -161,7 +161,51 @@ export interface paths {
             };
         };
         put?: never;
-        post?: never;
+        /** Push entries via JSON array */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TimeEntry"][];
+                };
+            };
+            responses: {
+                /** @description Entries accepted */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["APIEnvelope"] & {
+                            data?: components["schemas"]["PushResult"];
+                        };
+                    };
+                };
+                /** @description Invalid body or validation failed */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -351,6 +395,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import entries via JSONL body */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "text/plain": string;
+                };
+            };
+            responses: {
+                /** @description Entries imported */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["APIEnvelope"] & {
+                            data?: components["schemas"]["ImportResult"];
+                        };
+                    };
+                };
+                /** @description Invalid JSONL body or empty */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Method not allowed */
+                405: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/planned-vs-actual": {
         parameters: {
             query?: never;
@@ -488,6 +601,20 @@ export interface components {
              * @example 10.67
              */
             hours: number;
+        };
+        PushResult: {
+            /**
+             * @description Number of entries accepted.
+             * @example 5
+             */
+            accepted: number;
+        };
+        ImportResult: {
+            /**
+             * @description Number of entries imported.
+             * @example 10
+             */
+            imported: number;
         };
     };
     responses: never;
