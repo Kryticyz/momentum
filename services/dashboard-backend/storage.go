@@ -1,6 +1,9 @@
 package main
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 // EntryStore defines the storage operations needed by HTTP handlers.
 // Implemented by the in-memory Store (JSONL) and the PostgreSQL PgStore.
@@ -23,4 +26,10 @@ type EntryStore interface {
 
 	// Close releases any resources held by the store.
 	Close() error
+}
+
+// Pinger is an optional interface that stores can implement to expose a
+// connectivity check. The Health handler uses this to report database status.
+type Pinger interface {
+	Ping(ctx context.Context) error
 }

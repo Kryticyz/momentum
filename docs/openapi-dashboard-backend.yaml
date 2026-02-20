@@ -248,7 +248,7 @@ components:
       description: Standard response envelope. All successful responses use this shape.
     HealthData:
       type: object
-      required: [status, entries]
+      required: [status, entries, database]
       properties:
         status:
           type: string
@@ -256,6 +256,14 @@ components:
         entries:
           type: integer
           example: 142
+        listenAddress:
+          type: string
+          example: ':8080'
+        database:
+          type: string
+          description: Database connectivity status. "ok" when connected, "unreachable" on failure, "n/a" for in-memory store.
+          enum: [ok, unreachable, n/a]
+          example: ok
     RefreshData:
       type: object
       required: [ok, entries]

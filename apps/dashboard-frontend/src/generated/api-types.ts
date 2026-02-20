@@ -418,6 +418,14 @@ export interface components {
             status: string;
             /** @example 142 */
             entries: number;
+            /** @example :8080 */
+            listenAddress?: string;
+            /**
+             * @description Database connectivity status. "ok" when connected, "unreachable" on failure, "n/a" for in-memory store.
+             * @example ok
+             * @enum {string}
+             */
+            database: "ok" | "unreachable" | "n/a";
         };
         RefreshData: {
             /** @example true */

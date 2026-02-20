@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -9,6 +11,22 @@ import (
 	"testing"
 	"time"
 )
+
+// mockPingerStore embeds *Store and adds Ping for testing the health DB check.
+type mockPingerStore struct {
+	*Store
+	pingErr error
+}
+
+func (m *mockPingerStore) Ping(_ context.Context) error { return m.pingErr }
+
+// storeWithEntries creates an in-memory Store pre-loaded with entries.
+func storeWithEntries(t *testing.T, entries []TimeEntry) *Store {
+	t.Helper()
+	s := NewStore("")
+	s.snap.Store(&storeSnapshot{entries: entries})
+	return s
+}
 
 // newTestHandlers creates a Handlers instance with the given entries pre-loaded.
 func newTestHandlers(t *testing.T, entries []TimeEntry) *Handlers {
@@ -89,6 +107,41 @@ func TestHealth_ReturnsOK(t *testing.T) {
 	}
 	if count, ok := data["entries"].(float64); !ok || count != 1 {
 		t.Errorf("expected entries=1, got %v", data["entries"])
+	}
+}
+
+func TestHealth_DatabaseNA_InMemoryStore(t *testing.T) {
+	h := newTestHandlers(t, []TimeEntry{makeEntry("2026-02-12", "A", 30)})
+	rr := get(t, h.Health, "/health")
+	data := envelopeData[map[string]any](t, rr)
+	if data["database"] != "n/a" {
+		t.Errorf("expected database=n/a for in-memory store, got %v", data["database"])
+	}
+}
+
+func TestHealth_DatabaseOK_WhenPingerSucceeds(t *testing.T) {
+	store := &mockPingerStore{
+		Store:   storeWithEntries(t, []TimeEntry{makeEntry("2026-02-12", "A", 30)}),
+		pingErr: nil,
+	}
+	h := &Handlers{store: store, config: Config{Timezone: "UTC"}}
+	rr := get(t, h.Health, "/health")
+	data := envelopeData[map[string]any](t, rr)
+	if data["database"] != "ok" {
+		t.Errorf("expected database=ok, got %v", data["database"])
+	}
+}
+
+func TestHealth_DatabaseUnreachable_WhenPingerFails(t *testing.T) {
+	store := &mockPingerStore{
+		Store:   storeWithEntries(t, []TimeEntry{makeEntry("2026-02-12", "A", 30)}),
+		pingErr: fmt.Errorf("connection refused"),
+	}
+	h := &Handlers{store: store, config: Config{Timezone: "UTC"}}
+	rr := get(t, h.Health, "/health")
+	data := envelopeData[map[string]any](t, rr)
+	if data["database"] != "unreachable" {
+		t.Errorf("expected database=unreachable, got %v", data["database"])
 	}
 }
 

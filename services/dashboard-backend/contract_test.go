@@ -163,7 +163,7 @@ func TestContract_HealthData(t *testing.T) {
 	}
 
 	data := envelopeData[map[string]any](t, rr)
-	requiredFields := []string{"status", "entries", "listenAddress"}
+	requiredFields := []string{"status", "entries", "listenAddress", "database"}
 	for _, field := range requiredFields {
 		if _, ok := data[field]; !ok {
 			t.Errorf("missing required health field %q", field)

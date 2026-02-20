@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -109,10 +110,24 @@ func (h *Handlers) Health(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
+
+	dbStatus := "n/a"
+	if pinger, ok := h.store.(Pinger); ok {
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+		if err := pinger.Ping(ctx); err != nil {
+			slog.Warn("health check: database ping failed", "error", err)
+			dbStatus = "unreachable"
+		} else {
+			dbStatus = "ok"
+		}
+	}
+
 	h.writeData(w, http.StatusOK, map[string]any{
 		"status":        "ok",
 		"entries":       h.store.Count(),
 		"listenAddress": fmt.Sprintf("%s:%d", h.config.BindAddress, h.config.Port),
+		"database":      dbStatus,
 	}, h.store.Count())
 }
 
