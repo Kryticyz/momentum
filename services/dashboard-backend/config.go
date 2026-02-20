@@ -78,7 +78,10 @@ func loadConfig() Config {
 		_ = json.Unmarshal(data, &cfg)
 	}
 
-	// CLI flags override config file (only when explicitly set).
+	// Environment variables override config file.
+	applyEnvOverrides(&cfg)
+
+	// CLI flags override environment variables (only when explicitly set).
 	if *jsonlFlag != "" {
 		cfg.JSONLPath = *jsonlFlag
 	}
@@ -148,4 +151,58 @@ func parseCSV(value string) []string {
 		}
 	}
 	return out
+}
+
+// applyEnvOverrides reads environment variables and applies them to the config.
+// Priority: defaults < config.json < env vars < CLI flags.
+func applyEnvOverrides(cfg *Config) {
+	if v := os.Getenv("DATABASE_URL"); v != "" {
+		cfg.DatabaseURL = v
+	}
+	if v := os.Getenv("API_KEY"); v != "" {
+		cfg.APIKey = v
+	}
+	if v := os.Getenv("JSONL_PATH"); v != "" {
+		cfg.JSONLPath = v
+	}
+	if v := os.Getenv("PORT"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.Port = n
+		} else {
+			slog.Warn("invalid PORT env var", "value", v)
+		}
+	}
+	if v := os.Getenv("BIND_ADDRESS"); v != "" {
+		cfg.BindAddress = v
+	}
+	if v := os.Getenv("TIMEZONE"); v != "" {
+		cfg.Timezone = v
+	}
+	if v := os.Getenv("CORS_ALLOWED_ORIGINS"); v != "" {
+		cfg.CORSAllowedOrigins = parseCSV(v)
+	}
+	if v := os.Getenv("SERVE_API"); v != "" {
+		if parsed, err := strconv.ParseBool(v); err == nil {
+			cfg.ServeAPI = parsed
+		} else {
+			slog.Warn("invalid SERVE_API env var", "value", v)
+		}
+	}
+	if v := os.Getenv("SERVE_FRONTEND"); v != "" {
+		if parsed, err := strconv.ParseBool(v); err == nil {
+			cfg.ServeFrontend = parsed
+		} else {
+			slog.Warn("invalid SERVE_FRONTEND env var", "value", v)
+		}
+	}
+	if v := os.Getenv("FRONTEND_DIR"); v != "" {
+		cfg.FrontendDir = v
+	}
+	if v := os.Getenv("POLL_INTERVAL_HOURS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.PollIntervalHours = n
+		} else {
+			slog.Warn("invalid POLL_INTERVAL_HOURS env var", "value", v)
+		}
+	}
 }
